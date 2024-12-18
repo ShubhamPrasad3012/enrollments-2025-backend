@@ -1,0 +1,57 @@
+# Python specific
+*.py[cod]
+__pycache__/
+*.so
+*.pyd
+*.pyo
+.Python
+env/
+venv/
+ENV/
+env.bak/
+*.egg
+*.egg-info/
+.eggs/
+
+# IDE-specific
+.idea/
+.vscode/
+*.swp
+
+# Logs and output
+*.log
+*.out
+*.err
+*.db
+*.sqlite3
+
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.*
+
+# Byte-compiled / optimized / DLL files
+*.py[cod]
+
+# pytest
+.cache/
+
+# MyPy
+.mypy_cache/
+
+# Coverage reports
+htmlcov/
+.coverage
+.tox/
+
+# Build and distributions
+build/
+dist/
+*.egg-info/
+pip-wheel-metadata/
+
+# Uvicorn logs (optional)
+uvicorn.log
