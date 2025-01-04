@@ -5,7 +5,7 @@ from middleware.verifyToken import get_access_token
 from config import user_table, get_firebase_app, interview_table
 from firebase_admin import auth
 
-app=FastAPI()
+slot_app=FastAPI()
 
 #Route for getting slots from interview table
 @app.get("/get-slots")

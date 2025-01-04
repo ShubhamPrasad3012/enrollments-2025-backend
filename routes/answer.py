@@ -5,7 +5,7 @@ from middleware.verifyToken import get_access_token
 from config import user_table, get_firebase_app
 from firebase_admin import auth
 
-app=FastAPI()
+ans_app=FastAPI()
 
 #Structure definition for answers with respect to questions
 class answerStruct(BaseModel):
