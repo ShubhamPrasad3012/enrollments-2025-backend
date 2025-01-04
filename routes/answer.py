@@ -12,13 +12,14 @@ class answerStruct(BaseModel):
     answers: List[Dict[str,str]]
 
 #Route for posting answers
-@app.post("/post-answer")
+@ans_app.post("/post-answer")
 async def post_answers(answerReq:answerStruct, idToken:str=Depends(get_access_token)):
     try:
 
         #Validating token and fetching user records
         decoded_token = auth.verify_id_token(idToken, app=get_firebase_app())
         email = decoded_token.get('email')
+
         response = user_table.get_item(Key={'uid': email})
         user = response.get('Item')
 
@@ -28,7 +29,7 @@ async def post_answers(answerReq:answerStruct, idToken:str=Depends(get_access_to
         #Updating the table with the answes 
         user['qna']= answerReq.answers
         result=user_table.put_item(Item=user)
-
+       
         return{"message":"Answers submitted successfully","response":result}
     
     except Exception as e:

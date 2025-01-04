@@ -7,8 +7,9 @@ from firebase_admin import auth
 
 slot_app=FastAPI()
 
+
 #Route for getting slots from interview table
-@app.get("/get-slots")
+@slot_app.get("/get-slots")
 async def get_slots():
     try:
         #Fetching all slots from db
@@ -29,13 +30,14 @@ class Slot(BaseModel):
     time_slot:str
 
 #Route for posting selected slots
-@app.post("/post-slots")
+@slot_app.post("/post-slots")
 async def post_slots(slot_req:Slot, idToken:str=Depends(get_access_token)):
     try:    
 
         #Validating token and fetching user records
         decoded_token = auth.verify_id_token(idToken, app=get_firebase_app())
         email = decoded_token.get('email')
+       
         response = user_table.get_item(Key={'uid': email})
         user = response.get('Item')
 
@@ -49,9 +51,8 @@ async def post_slots(slot_req:Slot, idToken:str=Depends(get_access_token)):
                     }]
         
         result=user_table.put_item(Item=user)
-
-        return{"message":"Answers submitted successfully","response":result}
-    
+        return{"message":"Answers submitted successfully","response":result}      
+ 
     except Exception as e:
         raise HTTPException(status_code=400,detail=f"Error posting answers: {str(e)}")
     

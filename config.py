@@ -17,6 +17,7 @@ user_table_name = "enrollments-site-users"
 quiz_table_name = "enrollments-site-quiz"
 user_table = dynamodb.Table(user_table_name)
 quiz_table = dynamodb.Table(quiz_table_name)
+interview_table=dynamodb.Table("enrollments-site-interview")
 
 cred = credentials.Certificate("./serviceAccountKey.json")
 firebase_app = firebase_admin.initialize_app(cred)
