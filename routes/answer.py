@@ -18,30 +18,31 @@ class answerStruct(BaseModel):
     answers: List[QuestionAnswer]
 
 
-
-
-#Route for posting answers
+# Route for posting answers
 @ans_app.post("/post-answer")
-async def post_answers(answerReq:answerStruct, idToken:str=Depends(get_access_token)):
+async def post_answers(answerReq: answerStruct, idToken: str = Depends(get_access_token)):
     try:
-
-        #Validating token and fetching user records
+        # Validating token and fetching user records
         decoded_token = auth.verify_id_token(idToken, app=get_firebase_app())
         email = decoded_token.get('email')
+
+
         response = user_table.get_item(Key={'uid': email})
         user = response.get('Item')
-        
-  
+
         if not user:
-            raise HTTPException(status_code=404,detail="User not found")
-        
-        #prepping the answer record
+            raise HTTPException(status_code=404, detail="User not found")
+
+        #Converting pydantic model to dictionary
+        answers_dict = [answer.dict() for answer in answerReq.answers]
+
+        # Preparing the answer record
         existing_qna = user.get("qna", {})
         existing_qna[answerReq.domain] = {
-            "answers": answerReq.answers
+            "answers": answers_dict
         }
 
-        #Updating the table with the answers
+        # Updating the table with the answers
         user_table.update_item(
             Key={"uid": email},
             UpdateExpression="SET #qna = :updated_qna",
@@ -54,8 +55,7 @@ async def post_answers(answerReq:answerStruct, idToken:str=Depends(get_access_to
             ReturnValues="UPDATED_NEW",
         )
        
-        return{"message":"Answers submitted successfully", "qna":existing_qna}
+        return {"message": "Answers submitted successfully", "qna": existing_qna}
     
     except Exception as e:
-        raise HTTPException(status_code=400,detail=f"Error posting answers: {str(e)}")
-
+        raise HTTPException(status_code=400, detail=f"Error posting answers: {str(e)}")
