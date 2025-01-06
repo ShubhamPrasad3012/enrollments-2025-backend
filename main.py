@@ -1,10 +1,8 @@
 from fastapi import FastAPI
-from routes.users import users_router
-from routes.slots import slots_router
+from routes.quiz_status import quiz_status_app
 
-# Main FastAPI application
+# Main application
 app = FastAPI()
 
-# Mount the routes
-app.include_router(users_router, prefix="/getdata", tags=["Users"])
-app.include_router(slots_router, prefix="/book-slot", tags=["Slots"])
+# Mount the route
+app.mount("/", quiz_status_app)
