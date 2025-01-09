@@ -22,7 +22,7 @@ class LoginRequest(BaseModel):
 class UsernameRequest(BaseModel):
     username: str
 
-# Dependency to extract the Bearer token
+
 
 @user.post("/login")
 async def login(authorization: str = Depends(get_access_token)):
@@ -61,7 +61,6 @@ async def submit_username(
     print("in function")
     try:
         username = username_request.username
-
         if not username:
             raise HTTPException(status_code=400, detail="Username cannot be empty")
 
@@ -76,7 +75,7 @@ async def submit_username(
         if not user:
             raise HTTPException(status_code=404, detail="User not found in DynamoDB")
 
-        if user['username'] not in [None, ""]:
+        if user.get('username') not in [None, ""]:
             raise HTTPException(status_code=409, detail="Username already exists for this user")
 
         scan_response = user_table.scan(
