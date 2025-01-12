@@ -35,12 +35,7 @@ async def login(authorization: str = Depends(get_access_token)):
         response = user_table.get_item(Key={'uid': email})
         user = response.get('Item')
         if user is not None:
-            logger.info(f"User with email {email} found")
-            
-            if user.get("username") not in [None, ""]:
-                return {"status": "success", "message": "Username exists", "email": email, "username": user.get("username")}
-            else:
-                return {"status": "success", "message": "Username does not exist", "email": email} 
+            return  {"email": email, "username": user.get("username"), "mobile": user.get("mobile"), "name": user.get("name"), "domain": user.get("domain") }
         else:
             raise HTTPException(status_code=401, detail="User not registered on VTOP")
 
@@ -52,6 +47,19 @@ async def login(authorization: str = Depends(get_access_token)):
     except Exception as e:
         logger.exception(f"Error during login: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@user.get("/profile")
+async def login(authorization: str = Depends(get_access_token)):
+    try:
+        decoded_token = auth.verify_id_token(authorization)
+        email = decoded_token.get('email')
+        response = user_table.get_item(Key={'uid': email})
+        user = response.get('Item')
+        return {"email": email, "username": user.get("username"), "mobile": user.get("mobile"), "name": user.get("name"), "domain": user.get("domain") }
+        
+    except auth.InvalidIdTokenError:
+        logger.error("Invalid ID token provided")
+        raise HTTPException(status_code=401, detail="Invalid ID token")
 
 @user.post("/username")
 async def submit_username(
