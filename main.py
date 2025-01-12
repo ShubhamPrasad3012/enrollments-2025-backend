@@ -5,7 +5,7 @@ from config import user_table, quiz_table, get_firebase_app
 from typing import List
 from routes.domain import domain_app
 from routes.user import user
-
+from routes.quiz_status import router as quiz_status_router
 
 origins = [
     "http://localhost:5173",  
@@ -24,4 +24,16 @@ app.add_middleware(
 
 app.mount("/user", user)
 app.mount("/domain", domain_app)
+app.include_router(quiz_status_router, prefix="/quiz-status")
+
+
+
+
+
+
+
+
+
+
+
 
