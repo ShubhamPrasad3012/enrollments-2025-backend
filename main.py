@@ -1,7 +1,5 @@
 from fastapi import FastAPI
-from firebase_admin import auth
 from fastapi.middleware.cors import CORSMiddleware
-from config import user_table, quiz_table, get_firebase_app
 from routes.domain import domain_app
 from routes.user import user
 from routes.answer import ans_app
