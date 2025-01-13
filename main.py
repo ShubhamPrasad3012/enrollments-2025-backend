@@ -7,7 +7,7 @@ from routes.user import user
 from routes.answer import ans_app
 from routes.slots import slot_app
 from routes.quiz_progress import quiz_app
-from routes.quiz_status import router as quiz_status_router
+from routes.quiz_status import quiz_status
 
 
 origins = [
@@ -31,4 +31,5 @@ app.include_router(quiz_status_router, prefix="/quiz-status")
 app.mount("/answer", ans_app)
 app.mount("/slots", slot_app)
 app.mount("/quiz", quiz_app)
+app.mount("/quiz-status", quiz_status)
 
