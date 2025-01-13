@@ -1,4 +1,3 @@
-# Main application
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from routes.domain import domain_app
@@ -27,7 +26,7 @@ app.add_middleware(
     allow_methods=["*"], 
     allow_headers=["*"],
 )
-# Pass resources to sub-applications
+
 app.mount("/user", user)
 app.mount("/domain", domain_app)
 app.mount("/answer", ans_app)
