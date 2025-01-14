@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from typing import Dict, List
 from pydantic import BaseModel
 from middleware.verifyToken import get_access_token
-from config import user_table,get_firebase_app
+from config import get_resources
 from firebase_admin import auth
 
 quiz_app=FastAPI()
@@ -15,10 +15,12 @@ class QuizProgress(BaseModel):
 
 #Route for getting quiz progress
 @quiz_app.get("/get-progress")
-async def get_progress(idToken:str=Depends(get_access_token)):
+async def get_progress(idToken:str=Depends(get_access_token), resources: dict = Depends(get_resources)):
     try:
         #Validating token and fetching user
-        decoded_token=auth.verify_id_token(idToken, app=get_firebase_app())
+        user_table = resources["user_table"]
+        app = resources["firebase_app"]
+        decoded_token=auth.verify_id_token(idToken, app)
         email=decoded_token.get('email')
         response = user_table.get_item(Key={'uid': email})
         user = response.get('Item')
