@@ -1,16 +1,17 @@
 from fastapi import FastAPI, HTTPException, Header, Depends
 from firebase_admin import auth
 from config import user_table, quiz_table, get_firebase_app
-from typing import List
+from typing import List, Dict
 from middleware.verifyToken import get_access_token
 
 domain_app = FastAPI()
 
 @domain_app.post('/submit')
-async def post_domain(domain: List[int], id_token: str = Depends(get_access_token)):
+async def post_domain(domain: Dict[str, List[int]], id_token: str = Depends(get_access_token)):
     try:
         decoded_token = auth.verify_id_token(id_token, app=get_firebase_app())
         email = decoded_token.get('email')
+        
         response = user_table.get_item(Key={'uid': email})
         user = response.get('Item')
         
@@ -19,16 +20,22 @@ async def post_domain(domain: List[int], id_token: str = Depends(get_access_toke
         
         if not domain:
             raise HTTPException(status_code=400, detail="Domain list cannot be empty")
+        
+        for key, domain_list in domain.items():
+            if len(domain_list) > 2:
+                raise HTTPException(status_code=400, detail=f"Domain array for key {key} cannot have more than 2 entries")
+
         print(domain)
+        
         user['domain'] = domain
         result = user_table.put_item(Item=user)
         
-        return {"message": "Domain added successfully", "response": result}
+        return {"message": "Domain added successfully", "selected": domain}
     
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error: {str(e)}")
-
-@domain_app.get('/quiz/{domain}')
+  
+@domain_app.get('/quiz')
 async def get_qs(domain: str):
     try:
         response = quiz_table.get_item(Key={'qid': domain})
