@@ -1,29 +1,31 @@
-from fastapi import FastAPI,HTTPException,Depends
-from typing import List,Dict 
+from fastapi import FastAPI, HTTPException, Depends
+from typing import List, Dict
 from pydantic import BaseModel
 from middleware.verifyToken import get_access_token
-from config import user_table, get_firebase_app
 from firebase_admin import auth
+from config import initialize
 
-ans_app=FastAPI()
+ans_app = FastAPI()
 
-#Strucutre for answers and questions
+resources = initialize()
+user_table = resources['user_table']
+firebase_app = resources['firebase_app']  
+
 class QuestionAnswer(BaseModel):
     question: str
     answer: str
 
-#Structure definition for answers with respect to questions and domain
-class answerStruct(BaseModel):
+class AnswerStruct(BaseModel):
     domain: str
     questions: List[str]
     answers: List[str]
     
 # Route for posting answers
 @ans_app.post("/post-answer")
-async def post_answers(answerReq: answerStruct, idToken: str = Depends(get_access_token)):
+async def post_answers(answerReq: AnswerStruct, idToken: str = Depends(get_access_token)):
     try:
         # Validate token and fetch user records
-        decoded_token = auth.verify_id_token(idToken, app=get_firebase_app())
+        decoded_token = auth.verify_id_token(idToken, app=firebase_app)
         email = decoded_token.get("email")
 
         response = user_table.get_item(Key={"uid": email})
