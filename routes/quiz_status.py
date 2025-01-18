@@ -1,9 +1,14 @@
 from fastapi import FastAPI,HTTPException,Depends
 from pydantic import BaseModel
 import boto3
-from config import user_table
+
+
+from config import initialize
 quiz_status = FastAPI()
 
+
+resources = initialize()
+user_table = resources['user_table']
 
 # Request model
 class QuizStatusRequest(BaseModel):
