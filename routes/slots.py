@@ -1,58 +1,60 @@
-from fastapi import FastAPI,HTTPException,Depends
-from typing import List,Dict 
+from fastapi import FastAPI, HTTPException, Depends
+from typing import List, Dict
 from pydantic import BaseModel
 from middleware.verifyToken import get_access_token
-from config import user_table, get_firebase_app, interview_table
 from firebase_admin import auth
+from config import initialize
 
-slot_app=FastAPI()
+resources = initialize()
+user_table = resources['user_table']
+interview_table = resources['interview_table']
+firebase_app = resources['firebase_app']
 
+slot_app = FastAPI()
 
-#Route for getting slots from interview table
+# Route for getting slots from interview table
 @slot_app.get("/get-slots")
-async def get_slots():
+async def get_slots(resources: dict = Depends(initialize)):
     try:
-        #Fetching all slots from db
-        response=interview_table.scan()
-        slots=response.get('Items',[])
+        # Fetching all slots from the interview table
+        response = interview_table.scan()
+        slots = response.get('Items', [])
 
         if not slots:
-            raise HTTPException(status_code=404,detail="No slots found")
+            raise HTTPException(status_code=404, detail="No slots found")
     
-        return{"message":"Slots have been fetched succ","slots":slots}
+        return {"message": "Slots have been fetched successfully", "slots": slots}
 
     except Exception as e:
-        raise HTTPException(status_code=400,detail=f"Error retrieving slots: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Error retrieving slots: {str(e)}")
     
-#struct for slot
+# Struct for slot
 class Slot(BaseModel):
-    iid:str
-    time_slot:str
+    iid: str
+    time_slot: str
 
-#Route for posting selected slots
+# Route for posting selected slots
 @slot_app.post("/post-slots")
-async def post_slots(slot_req:Slot, idToken:str=Depends(get_access_token)):
-    try:    
-
-        #Validating token and fetching user records
-        decoded_token = auth.verify_id_token(idToken, app=get_firebase_app())
+async def post_slots(slot_req: Slot, idToken: str = Depends(get_access_token), resources: dict = Depends(initialize)):
+    try:
+        # Verifying token and fetching user records
+        decoded_token = auth.verify_id_token(idToken, app=firebase_app)
         email = decoded_token.get('email')
-       
+
         response = user_table.get_item(Key={'uid': email})
         user = response.get('Item')
 
         if not user:
-            raise HTTPException(status_code=404,detail="User not found")
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Updating the user record with selected slot
+        user["slot"] = [{
+            "iid": slot_req.iid,
+            "time": slot_req.time_slot
+        }]
         
-        #Updating the table with the slots chosen
-        user["slot"]=[{
-                        "iid":slot_req.iid,
-                        "time":slot_req.time_slot
-                    }]
-        
-        result=user_table.put_item(Item=user)
-        return{"message":"Answers submitted successfully","response":result}      
- 
+        result = user_table.put_item(Item=user)
+        return {"message": "Slot selected successfully", "response": result}  
+
     except Exception as e:
-        raise HTTPException(status_code=400,detail=f"Error posting answers: {str(e)}")
-    
+        raise HTTPException(status_code=400, detail=f"Error posting slot: {str(e)}")
