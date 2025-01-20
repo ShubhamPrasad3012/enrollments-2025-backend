@@ -1,20 +1,18 @@
-from fastapi import FastAPI,HTTPException,Depends
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import boto3
 
+router = APIRouter()
 
-from config import initialize
-quiz_status = FastAPI()
-
-
-resources = initialize()
-user_table = resources['user_table']
+# Initialize DynamoDB resource
+dynamodb = boto3.resource("dynamodb", region_name="ap-south-1")
+user_table = dynamodb.Table("enrollments-site-users")
 
 # Request model
 class QuizStatusRequest(BaseModel):
     uid: str
 
-@quiz_status.post("/", response_model=dict)
+@router.post("/", response_model=dict)
 async def get_quiz_status(request: QuizStatusRequest):
     """
     Endpoint to fetch and update the quiz status of a user based on their domain and QnA data.
