@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends
+from fastapi.responses import JSONResponse
 from firebase_admin import auth
 from pydantic import BaseModel
 from middleware.verifyToken import get_access_token
@@ -24,13 +25,9 @@ async def login(authorization: str = Depends(get_access_token), resources: dict 
         response = user_table.get_item(Key={'uid': email})
         user = response.get('Item')
         if user is not None:
-            username = user.get("username")
-            if username not in [None, ""]:
-                return {"status": "success", "message": "Username exists", "email": email, "username": username}
-            else:
-                return {"status": "success", "message": "Username does not exist", "email": email}
+            return JSONResponse(status_code=200, content={"detail": "Logged In Successfully"})
         else:
-            raise HTTPException(status_code=401, detail="User not registered on VTOP")
+            return JSONResponse(status_code=402, content={"detail":"User not registered on VTOP"})
 
     except auth.InvalidIdTokenError:
         raise HTTPException(status_code=401, detail="Invalid ID token")
