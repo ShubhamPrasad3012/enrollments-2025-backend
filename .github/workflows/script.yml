@@ -1,0 +1,22 @@
+name: Trigger Shell Script on Push
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  run_script:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Activate venv
+        uses: source env/bin/activate
+
+      - name: get latest
+        uses: git pull
+       
+      - name: Python requirements
+        uses: pip install -r requirements.txt
+
+      - name: Create screen
+        uses: screen -dmS uvicorn_session uvicorn main:app --host 0.0.0.0 --port 8000
