@@ -12,8 +12,14 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v2  # This checks out the repository
 
-      - name: Activate virtual environment
+      - name: Verify current directory
         run: |
+          pwd  # Prints the current working directory
+          ls -al  # Lists all files in the current directory
+
+      - name: Set up Python environment
+        run: |
+          python3 -m venv env  # Create a virtual environment if it doesn't exist
           source env/bin/activate  # Activate the virtual environment
           echo "Virtual environment activated"
 
