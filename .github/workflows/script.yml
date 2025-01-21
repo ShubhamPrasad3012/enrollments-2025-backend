@@ -7,16 +7,24 @@ on:
 
 jobs:
   run_script:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # Use the latest Ubuntu runner
     steps:
-      - name: Activate venv
-        uses: source env/bin/activate
+      - name: Checkout code
+        uses: actions/checkout@v2  # This checks out the repository
 
-      - name: get latest
-        uses: git pull
-       
-      - name: Python requirements
-        uses: pip install -r requirements.txt
+      - name: Activate virtual environment
+        run: |
+          source env/bin/activate  # Activate the virtual environment
+          echo "Virtual environment activated"
 
-      - name: Create screen
-        uses: screen -dmS uvicorn_session uvicorn main:app --host 0.0.0.0 --port 8000
+      - name: Get latest code
+        run: |
+          git pull  # Pull the latest changes from the repository
+
+      - name: Install Python requirements
+        run: |
+          pip install -r requirements.txt  # Install required Python packages
+
+      - name: Create screen and run uvicorn
+        run: |
+          screen -dmS uvicorn_session uvicorn main:app --host 0.0.0.0 --port 8000  # Run uvicorn in a detached screen session
