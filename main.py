@@ -33,3 +33,6 @@ app.mount("/answer", ans_app)
 app.mount("/slots", slot_app)
 app.mount("/quiz", quiz_app)
 
+@app.get("/ping")
+async def ping():
+    return {"message": "pong"}
