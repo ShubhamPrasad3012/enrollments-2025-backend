@@ -53,7 +53,16 @@ async def get_qs(domain: str):
         if not qs:
             raise HTTPException(status_code=404, detail="Questions not found")
         
-        return {"questions": qs}
+        formatted_questions = []
+        for question in qs:
+            formatted_question = {
+                "question": question.get("question"),
+                "answers": question.get("answers"),
+                "correctAnswer": question.get("correctAnswer"),
+            }
+            formatted_questions.append(formatted_question)
+        
+        return {"questions": formatted_questions}
     
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error: {str(e)}")

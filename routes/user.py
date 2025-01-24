@@ -37,7 +37,7 @@ async def login(authorization: str = Depends(get_access_token), resources: dict 
             raise HTTPException(status_code=500, detail=f"Database lookup failed: {str(db_error)}")
 
         if user is None:
-            return JSONResponse(status_code=404, content="User not registered on VTOP")
+            return JSONResponse(content={"message": "User not registered on VTOP"}, status_code=204)
 
         if 'username' not in user:
             return JSONResponse(status_code=201, content="Logged In Successfully")
