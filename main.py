@@ -17,6 +17,7 @@ origins = [
     "http://localhost:5173",  
     "http://localhost:5174",
     "https://enrollments.ieeecsvit.com",  
+    "https://enrollments-2025-frontend-12h7.vercel.app"
 ]
 
 app = FastAPI()
@@ -38,10 +39,3 @@ app.mount("/quiz-status", quiz_status)
 @app.get("/ping")
 async def ping():
     return {"message": "pong"}
-
-@app.get("/hi")
-async def ping():
-    return {"message": "bye"}
-
-
-"""uehbbfc,h,shck.hhs.c.sj.scj"""
