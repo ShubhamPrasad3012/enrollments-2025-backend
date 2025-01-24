@@ -2,7 +2,7 @@ from fastapi import FastAPI, HTTPException, Depends
 from typing import Dict, List
 from pydantic import BaseModel
 from middleware.verifyToken import get_access_token
-from config import user_table,get_firebase_app
+from config import user_table
 from firebase_admin import auth
 
 quiz_app=FastAPI()

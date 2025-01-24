@@ -27,5 +27,12 @@ def initialize():
         'interview_table': interview_table
     }
 
+resources = initialize()
+
+firebase_app = resources['firebase_app']
+user_table = resources['user_table']
+quiz_table = resources['quiz_table']
+interview_table = resources['interview_table']
+
 def get_resources():
-    return initialize()
+    return resources

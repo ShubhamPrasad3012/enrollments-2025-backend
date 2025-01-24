@@ -3,6 +3,7 @@ from firebase_admin import auth
 from typing import List, Dict
 from middleware.verifyToken import get_access_token
 from config import initialize
+from fastapi.responses import JSONResponse
 
 domain_app = FastAPI()
 
@@ -12,7 +13,7 @@ quiz_table = resources['quiz_table']
 
 # Route to submit domains
 @domain_app.post('/submit')
-async def post_domain(domain: Dict[str, List[int]], id_token: str = Depends(get_access_token)):
+async def post_domain(domain: Dict[str, List[str]], id_token: str = Depends(get_access_token)):
     try:
         decoded_token = auth.verify_id_token(id_token, app=resources['firebase_app'])
         email = decoded_token.get('email')
@@ -34,13 +35,11 @@ async def post_domain(domain: Dict[str, List[int]], id_token: str = Depends(get_
         user['domain'] = domain
         result = user_table.put_item(Item=user)
         
-        return {"message": "Domain added successfully", "selected": domain}
+        return JSONResponse(status_code=200, content=domain)
     
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error: {str(e)}")
 
-
-# Route to get quiz questions for a specific domain
 @domain_app.get('/quiz')
 async def get_qs(domain: str):
     try:

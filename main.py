@@ -14,7 +14,8 @@ quiz_table = resources['quiz_table']
 interview_table = resources['interview_table']
 origins = [
     "http://localhost:5173",  
-    "https://yourfrontenddomain.com",  
+    "http://localhost:5174",
+    "https://enrollments.ieeecsvit.com",  
 ]
 
 app = FastAPI()
