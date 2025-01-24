@@ -39,5 +39,9 @@ app.mount("/quiz-status", quiz_status)
 async def ping():
     return {"message": "pong"}
 
+@app.get("/hi")
+async def ping():
+    return {"message": "bye"}
+
 
 """uehbbfc,h,shck.hhs.c.sj.scj"""
