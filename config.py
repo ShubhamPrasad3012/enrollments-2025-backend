@@ -2,6 +2,8 @@ import boto3
 import firebase_admin
 from firebase_admin import credentials
 import os
+from dotenv import load_dotenv
+load_dotenv()
 
 def initialize():
     dynamodb = boto3.resource(
