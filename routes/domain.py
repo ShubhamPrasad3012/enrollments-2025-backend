@@ -11,7 +11,6 @@ resources = initialize()
 user_table = resources['user_table']
 quiz_table = resources['quiz_table']
 
-# Route to submit domains
 @domain_app.post('/submit')
 async def post_domain(domain: Dict[str, List[str]], id_token: str = Depends(get_access_token)):
     try:
@@ -22,47 +21,48 @@ async def post_domain(domain: Dict[str, List[str]], id_token: str = Depends(get_
         user = response.get('Item')
         
         if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+            raise HTTPException(status_code=404, content="User not found")
         
         if not domain:
-            raise HTTPException(status_code=400, detail="Domain list cannot be empty")
+            raise HTTPException(status_code=400, content="Domain list cannot be empty")
         
         for key, domain_list in domain.items():
             if len(domain_list) > 2:
-                raise HTTPException(status_code=400, detail=f"Domain array for key {key} cannot have more than 2 entries")
+                raise HTTPException(status_code=400, content=f"Domain array for key {key} cannot have more than 2 entries")
 
-        # Updating the user's domain data
         user['domain'] = domain
-        result = user_table.put_item(Item=user)
+        user_table.put_item(Item=user)
         
         return JSONResponse(status_code=200, content=domain)
     
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error: {str(e)}")
-
-@domain_app.get('/quiz')
-async def get_qs(domain: str):
+        raise HTTPException(status_code=400, content=f"Error: {str(e)}")
+    
+@domain_app.get('/questions')
+async def get_qs(domain: str, round: str):
     try:
         response = quiz_table.get_item(Key={'qid': domain})
         field = response.get('Item')
-
         if not field:
-            raise HTTPException(status_code=404, detail="Item not found")
-        
-        qs = field.get('qs')
-        if not qs:
-            raise HTTPException(status_code=404, detail="Questions not found")
-        
+            return JSONResponse(status_code=404, content="Invalid domain")
+
+        round_data = field.get(round)
+        if not round_data:
+            print('no')
+            return JSONResponse(status_code=401, content=f"Round {round} Questions not found")
         formatted_questions = []
-        for question in qs:
-            formatted_question = {
-                "question": question.get("question"),
-                "answers": question.get("answers"),
-                "correctAnswer": question.get("correctAnswer"),
-            }
+
+        for question in round_data:  
+            formatted_question = {"question": question["question"]}
+            if "options" in question:
+                formatted_question["options"] = question["options"]
+
+            if "correctIndex" in question:
+                formatted_question["correctAnswer"] = int(question["correctIndex"])
+
             formatted_questions.append(formatted_question)
-        
+
         return {"questions": formatted_questions}
-    
+
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error: {str(e)}")
+        raise HTTPException(status_code=400, content=f"Error: {str(e)}")
