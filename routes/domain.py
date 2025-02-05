@@ -30,7 +30,11 @@ async def post_domain(domain: Dict[str, List[str]], id_token: str = Depends(get_
             if len(domain_list) > 2:
                 raise HTTPException(status_code=400, content=f"Domain array for key {key} cannot have more than 2 entries")
 
-        user['domain'] = domain
+        all_domains = []
+        for domain_list in domain.values():
+            all_domains.extend(domain_list)
+
+        user['domain'] = all_domains
         user_table.put_item(Item=user)
         
         return JSONResponse(status_code=200, content=domain)
@@ -48,7 +52,6 @@ async def get_qs(domain: str, round: str):
 
         round_data = field.get(round)
         if not round_data:
-            print('no')
             return JSONResponse(status_code=401, content=f"Round {round} Questions not found")
         formatted_questions = []
 
