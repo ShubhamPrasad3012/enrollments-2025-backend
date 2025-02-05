@@ -1,6 +1,5 @@
 from fastapi import FastAPI,HTTPException,Depends
 from pydantic import BaseModel
-import boto3
 
 from config import initialize
 quiz_status = FastAPI()
