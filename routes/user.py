@@ -111,10 +111,21 @@ async def submit_username(
     except Exception as e:
         return JSONResponse(status_code=500, content= f"Internal Server Error: {str(e)}")
   
+SUBDOMAIN_MAPPING = {
+    "WEB": "Technical",
+    "APP": "Technical",
+    "AI/ML": "Technical",
+    "IOT": "Technical",
+    "PNM": "Management",
+    "EVENTS": "Management",
+    "UI/UX": "Design",
+    "GRAPHIC DESIGN": "Design",
+    "VIDEO EDITING": "Design"
+}
 @user.get("/dashboard")
 async def get_dashboard(
-    round: int = Query(..., description="Round number"), 
-    authorization: str = Depends(get_access_token), 
+    round: int = Query(..., description="Round number"),
+    authorization: str = Depends(get_access_token),
     resources: dict = Depends(get_resources)
 ):
     try:
@@ -126,38 +137,38 @@ async def get_dashboard(
         except Exception as token_error:
             raise HTTPException(status_code=401, detail=f"Invalid token: {str(token_error)}")
 
-        email = decoded_token.get('email')
+        email = decoded_token.get("email")
         if not email:
             raise HTTPException(status_code=400, detail="Email not found in ID token")
 
         try:
             user_table = resources.get("user_table")
-            response = user_table.get_item(Key={'uid': email})
-            user = response.get('Item')
-            if not user:
-                raise HTTPException(status_code=404, detail="User not found")
+            response = user_table.get_item(Key={"uid": email})
+            user = response.get("Item", {})
+
         except Exception as db_error:
             raise HTTPException(status_code=500, detail=f"Database lookup failed: {str(db_error)}")
 
-        all_domains = user.get('domain', None)
-        completed_domains = user.get(f'round{round}', None)
+        domain_data = user.get("domain", {})  # Dictionary of domains and their subdomains
+        completed_subdomains = set(user.get(f"round{round}", []))  # Subdomains completed in the round
 
-        if all_domains is None:
-            raise HTTPException(status_code=400, detail="Domains not found in user data")
-        if completed_domains is None:
-            completed_domains = {}
+        pending_list = []
+        completed_list = []
 
-
-        pending = defaultdict(list)
-        for domain, subdomains in all_domains.items():
-            completed_subs = set(completed_domains.get(domain, []))
+        for domain, subdomains in domain_data.items():
             for sub in subdomains:
-                if sub not in completed_subs:
-                    pending[domain].append(sub)
+                category = SUBDOMAIN_MAPPING.get(sub.upper(), "Other")
+                formatted_entry = f"{category}:{sub.upper()}"
+                
+                if sub.upper() in completed_subdomains:
+                    completed_list.append(formatted_entry)
+                else:
+                    pending_list.append(formatted_entry)
 
-        pending = dict(pending)
-
-        return JSONResponse(status_code=200, content=pending)
-
+        return JSONResponse(status_code=200, content={
+            "pending": pending_list,
+            "completed": completed_list
+        })
+    
     except Exception as unexpected_error:
         raise HTTPException(status_code=500, detail=f"Unexpected server error: {str(unexpected_error)}")
