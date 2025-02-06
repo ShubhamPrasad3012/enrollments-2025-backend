@@ -30,11 +30,7 @@ async def post_domain(domain: Dict[str, List[str]], id_token: str = Depends(get_
             if len(domain_list) > 2:
                 raise HTTPException(status_code=400, content=f"Domain array for key {key} cannot have more than 2 entries")
 
-        all_domains = []
-        for domain_list in domain.values():
-            all_domains.extend(domain_list)
-
-        user['domain'] = all_domains
+        user['domain'] = domain
         user_table.put_item(Item=user)
         
         return JSONResponse(status_code=200, content=domain)
