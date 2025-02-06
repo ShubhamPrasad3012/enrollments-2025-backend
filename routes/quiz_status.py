@@ -1,6 +1,5 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import boto3
 from firebase_admin import auth
 
 from config import initialize
