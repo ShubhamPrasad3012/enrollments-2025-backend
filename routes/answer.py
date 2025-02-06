@@ -20,6 +20,7 @@ class AnswerStruct(BaseModel):
     answers: List[str] = Field(...)
     score: Optional[int] = Field(None)
     round: int
+    subdomain: str = Field(...)
 
 domain_mapping = {
     "UI/UX": "ui",
@@ -49,9 +50,11 @@ async def post_answers(answerReq: AnswerStruct, idToken: str = Depends(get_acces
         if not user:
             return JSONResponse(status_code=404, content="User not found.")
 
-        if answerReq.domain not in user.get('domains', []):
+        all_subdomains = {sub for subdomains in user.get("domain", {}).values() for sub in subdomains}
+        if answerReq.subdomain not in all_subdomains:
             return JSONResponse(status_code=408, content="Domain was not selected")
-        mapped_domain = domain_mapping.get(answerReq.domain)
+        
+        mapped_domain = domain_mapping.get(answerReq.subdomain)
         domain_tables = resources['domain_tables']
         domain_table = domain_tables.get(mapped_domain)
 
@@ -63,8 +66,6 @@ async def post_answers(answerReq: AnswerStruct, idToken: str = Depends(get_acces
 
         answers_dict = [{"question": q, "answer": a} for q, a in zip(answerReq.questions, answerReq.answers)]
         response = domain_table.get_item(Key={'email': email})
-
-
 
         if answerReq.round == 1:
             if 'Item' in response:
@@ -102,13 +103,30 @@ async def post_answers(answerReq: AnswerStruct, idToken: str = Depends(get_acces
             )
 
         user_table.update_item(
-                Key={'uid': email},
-                UpdateExpression=f"SET round{answerReq.round} = list_append(if_not_exists(round{answerReq.round}, :empty_list), :new_value)",
-                ExpressionAttributeValues={
-                ':new_value': [answerReq.domain], 
-                ':empty_list': []           
-                },
-            )
+            Key={'uid': email},
+            UpdateExpression=f"""
+            SET round{answerReq.round} = if_not_exists(round{answerReq.round}, :empty_round)
+            """,
+            ExpressionAttributeValues={
+            ':empty_round': {}  
+            },
+        )
+
+        user_table.update_item(Key={'uid': email},UpdateExpression=f"""
+            SET round{answerReq.round}.#domain = list_append(
+            if_not_exists(round{answerReq.round}.#domain, :empty_list), 
+            :new_value
+        )
+            """,
+            ExpressionAttributeNames={
+            '#domain': answerReq.domain  
+            },
+        ExpressionAttributeValues={
+        ':new_value': [answerReq.subdomain],
+        ':empty_list': []  
+        },
+        )
+
         return {"message": f"Answers for domain '{answerReq.domain}' submitted successfully for round {answerReq.round}."}
 
     except ClientError as e:

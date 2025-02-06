@@ -4,6 +4,7 @@ from firebase_admin import auth
 from pydantic import BaseModel
 from middleware.verifyToken import get_access_token
 from config import get_resources
+from collections import defaultdict
 
 user = FastAPI()
 
@@ -109,9 +110,13 @@ async def submit_username(
         raise e
     except Exception as e:
         return JSONResponse(status_code=500, content= f"Internal Server Error: {str(e)}")
-    
+  
 @user.get("/dashboard")
-async def get_dashboard(round: int = Query(..., description="Round number"), authorization: str = Depends(get_access_token), resources: dict = Depends(get_resources)):
+async def get_dashboard(
+    round: int = Query(..., description="Round number"), 
+    authorization: str = Depends(get_access_token), 
+    resources: dict = Depends(get_resources)
+):
     try:
         if not authorization:
             raise HTTPException(status_code=400, detail="Authorization token missing")
@@ -129,16 +134,30 @@ async def get_dashboard(round: int = Query(..., description="Round number"), aut
             user_table = resources.get("user_table")
             response = user_table.get_item(Key={'uid': email})
             user = response.get('Item')
-
+            if not user:
+                raise HTTPException(status_code=404, detail="User not found")
         except Exception as db_error:
             raise HTTPException(status_code=500, detail=f"Database lookup failed: {str(db_error)}")
 
-        pending = list(
-            set(map(str.lower, user.get('domains', []))) - 
-            set(map(str.lower, user.get(f'round{round}', [])))
-        )
+        all_domains = user.get('domain', None)
+        completed_domains = user.get(f'round{round}', None)
+
+        if all_domains is None:
+            raise HTTPException(status_code=400, detail="Domains not found in user data")
+        if completed_domains is None:
+            completed_domains = {}
+
+
+        pending = defaultdict(list)
+        for domain, subdomains in all_domains.items():
+            completed_subs = set(completed_domains.get(domain, []))
+            for sub in subdomains:
+                if sub not in completed_subs:
+                    pending[domain].append(sub)
+
+        pending = dict(pending)
+
         return JSONResponse(status_code=200, content=pending)
-    
+
     except Exception as unexpected_error:
         raise HTTPException(status_code=500, detail=f"Unexpected server error: {str(unexpected_error)}")
-
