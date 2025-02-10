@@ -11,9 +11,9 @@ load_dotenv()
 def initialize():
     dynamodb = boto3.resource(
         'dynamodb',
-        region_name=os.getenv("AWS_REGION"),
-        aws_access_key_id=os.getenv("AWS_ACCESS_KEY"),
-        aws_secret_access_key=os.getenv("AWS_SECRET_KEY")
+        region_name=os.getenv("MY_AWS_REGION"),
+        aws_access_key_id=os.getenv("MY_AWS_ACCESS_KEY"),
+        aws_secret_access_key=os.getenv("MY_AWS_SECRET_KEY")
     )
 
     domain_tables = {
@@ -34,7 +34,7 @@ def initialize():
     interview_table = dynamodb.Table("enrollments-site-interview")
 
     if not firebase_admin._apps:
-        encoded_key = os.getenv("FIREBASE_SERVICE_ACCOUNT_KEY")
+        encoded_key = os.getenv("MY_FIREBASE_SERVICE_ACCOUNT_KEY")
         if encoded_key:
             decoded_key = json.loads(base64.b64decode(encoded_key).decode('utf-8'))
             cred = credentials.Certificate(decoded_key)
