@@ -8,10 +8,7 @@ from config import initialize
 from fastapi.responses import JSONResponse
 
 origins = [
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "https://enrollments.ieeecsvit.com",
-    "https://enrollments-2025-frontend-12h7.vercel.app",
+    "*"
 ]
 
 app = FastAPI()
