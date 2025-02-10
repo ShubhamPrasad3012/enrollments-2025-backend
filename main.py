@@ -33,18 +33,18 @@ app.add_middleware(
     max_age=600,  # Cache preflight requests for 10 minutes
 )
 
-# # Optional: Additional preflight handler if needed
-# @app.options("/{full_path:path}")
-# async def preflight_handler(full_path: str):
-#     return JSONResponse(
-#         content={},
-#         headers={
-#             "Access-Control-Allow-Origin": "*",  # Or use the dynamic origin selection based on the request
-#             "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
-#             "Access-Control-Allow-Headers": "Authorization, Content-Type",
-#             "Access-Control-Allow-Credentials": "true",
-#         }
-#     )
+# Optional: Additional preflight handler if needed
+@app.options("/{full_path:path}")
+async def preflight_handler(full_path: str):
+    return JSONResponse(
+        content={},
+        headers={
+            "Access-Control-Allow-Origin": "*",  # Or use the dynamic origin selection based on the request
+            "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
+            "Access-Control-Allow-Headers": "Authorization, Content-Type",
+            "Access-Control-Allow-Credentials": "true",
+        }
+    )
 
 # Mount your routers
 app.mount("/user", user)
