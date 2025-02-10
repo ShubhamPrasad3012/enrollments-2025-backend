@@ -56,3 +56,4 @@ pip-wheel-metadata/
 # Uvicorn logs (optional)
 uvicorn.log
 serviceAccountKey.json
+.vercel
