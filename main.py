@@ -7,12 +7,6 @@ from routes.slots import slot_app
 from config import initialize
 from fastapi.responses import JSONResponse
 
-resources = initialize()
-firebase_app = resources['firebase_app']
-user_table = resources['user_table']
-quiz_table = resources['quiz_table']
-interview_table = resources['interview_table']
-
 origins = [
     "http://localhost:5173",
     "http://localhost:5174",
@@ -22,10 +16,10 @@ origins = [
 
 app = FastAPI()
 
-# CORS middleware configuration
+# CORS middleware configuration with specific origins
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,  # Use specific origins instead of wildcard
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
     allow_headers=["*"],
@@ -39,7 +33,7 @@ async def preflight_handler(full_path: str):
     return JSONResponse(
         content={},
         headers={
-            "Access-Control-Allow-Origin": "*",  # Or use the dynamic origin selection based on the request
+            "Access-Control-Allow-Origin": "http://localhost:5173",  # Dynamic based on request origin
             "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS, PATCH",
             "Access-Control-Allow-Headers": "Authorization, Content-Type",
             "Access-Control-Allow-Credentials": "true",
