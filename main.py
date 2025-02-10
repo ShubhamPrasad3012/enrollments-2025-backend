@@ -1,21 +1,23 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routes.domain import domain_app
 from routes.user import user
 from routes.answer import ans_app
 from routes.slots import slot_app
 from config import initialize
+from fastapi.responses import JSONResponse
 
 resources = initialize()
 firebase_app = resources['firebase_app']
 user_table = resources['user_table']
 quiz_table = resources['quiz_table']
 interview_table = resources['interview_table']
+
 origins = [
-    "http://localhost:5173",  
+    "http://localhost:5173",
     "http://localhost:5174",
-    "https://enrollments.ieeecsvit.com",  
-    "https://enrollments-2025-frontend-12h7.vercel.app"
+    "https://enrollments.ieeecsvit.com",
+    "https://enrollments-2025-frontend-12h7.vercel.app",
 ]
 
 app = FastAPI()
@@ -27,6 +29,14 @@ app.add_middleware(
     allow_methods=["*"], 
     allow_headers=["*"],
 )
+
+@app.options("/{full_path:path}")
+async def preflight(full_path: str):
+    return JSONResponse(content={"message": "Preflight OK"}, headers={
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+        "Access-Control-Allow-Headers": "*",
+    })
 
 app.mount("/user", user)
 app.mount("/domain", domain_app)
