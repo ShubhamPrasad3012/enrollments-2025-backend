@@ -3,6 +3,9 @@ import firebase_admin
 from firebase_admin import credentials
 import os
 from dotenv import load_dotenv
+import json
+import base64
+
 load_dotenv()
 
 def initialize():
@@ -31,8 +34,13 @@ def initialize():
     interview_table = dynamodb.Table("enrollments-site-interview")
 
     if not firebase_admin._apps:
-        cred = credentials.Certificate("./serviceAccountKey.json")
-        firebase_app = firebase_admin.initialize_app(cred)
+        encoded_key = os.getenv("FIREBASE_SERVICE_ACCOUNT_KEY")
+        if encoded_key:
+            decoded_key = json.loads(base64.b64decode(encoded_key).decode('utf-8'))
+            cred = credentials.Certificate(decoded_key)
+            firebase_app = firebase_admin.initialize_app(cred)
+        else:
+            raise ValueError("FIREBASE_SERVICE_ACCOUNT_KEY is not set")
     else:
         firebase_app = firebase_admin.get_app()
 
