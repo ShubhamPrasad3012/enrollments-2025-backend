@@ -1,9 +1,11 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Response
 from firebase_admin import auth
 from typing import List, Dict
 from middleware.verifyToken import get_access_token
 from config import initialize
 from fastapi.responses import JSONResponse
+from datetime import datetime, timedelta, timezone
+import json
 
 domain_app = FastAPI()
 
@@ -45,25 +47,28 @@ async def get_qs(domain: str, round: str, id_token: str = Depends(get_access_tok
         email = decoded_token.get('email')
         response = quiz_table.get_item(Key={'qid': domain})
         field = response.get('Item')
+
         if not field:
             return JSONResponse(status_code=404, content="Invalid domain")
 
         round_data = field.get(round)
         if not round_data:
             return JSONResponse(status_code=401, content=f"Round {round} Questions not found")
-        formatted_questions = []
 
-        for question in round_data:  
-            formatted_question = {"question": question["question"]}
-            if "options" in question:
-                formatted_question["options"] = question["options"]
+        formatted_questions = [
+            {
+                "question": q["question"],
+                **({"options": q["options"]} if "options" in q else {}),
+                **({"correctAnswer": int(q["correctIndex"])} if "correctIndex" in q else {})
+            }
+            for q in round_data
+        ]
 
-            if "correctIndex" in question:
-                formatted_question["correctAnswer"] = int(question["correctIndex"])
+        expiry_time = (datetime.now(timezone.utc) + timedelta(minutes=10)).strftime("%a, %d %b %Y %H:%M:%S GMT")
+        response_obj = Response(content=json.dumps({"questions": formatted_questions}), media_type="application/json")
+        response_obj.headers["Set-Cookie"] = f"quizTimer=active; Expires={expiry_time}; Path=/; HttpOnly; Secure"
 
-            formatted_questions.append(formatted_question)
-
-        return {"questions": formatted_questions}
-
+        return response_obj
+    
     except Exception as e:
-        raise HTTPException(status_code=400, content=f"Error: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Error: {str(e)}")
