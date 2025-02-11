@@ -4,7 +4,6 @@ from typing import List, Dict
 from middleware.verifyToken import get_access_token
 from config import initialize
 from fastapi.responses import JSONResponse
-from datetime import datetime, timedelta, timezone
 import json
 
 domain_app = FastAPI()
@@ -64,9 +63,11 @@ async def get_qs(domain: str, round: str, id_token: str = Depends(get_access_tok
             for q in round_data
         ]
 
-        expiry_time = (datetime.now(timezone.utc) + timedelta(minutes=10)).strftime("%a, %d %b %Y %H:%M:%S GMT")
+        cookie_duration = 10 * 60
+
         response_obj = Response(content=json.dumps({"questions": formatted_questions}), media_type="application/json")
-        response_obj.headers["Set-Cookie"] = f"quizTimer=active; Expires={expiry_time}; Path=/; HttpOnly; Secure"
+
+        response_obj.headers["Set-Cookie"] = f"{domain}-quizTimer=active; Max-Age={cookie_duration}; Path=/; HttpOnly; Secure"
 
         return response_obj
     
