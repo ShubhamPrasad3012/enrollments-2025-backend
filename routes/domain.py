@@ -41,10 +41,10 @@ async def post_domain(domain: Dict[str, List[str]], id_token: str = Depends(get_
         raise HTTPException(status_code=400, content=f"Error: {str(e)}")
 
 @domain_app.get('/questions')
-async def get_qs(domain: str, round: str, id_token: str = Depends(get_access_token)):
+async def get_qs(domain: str, round: str):
     try:
-        decoded_token = auth.verify_id_token(id_token, app=resources['firebase_app'])
-        email = decoded_token.get('email')
+        # decoded_token = auth.verify_id_token(id_token, app=resources['firebase_app'])
+        # email = decoded_token.get('email')
         response = quiz_table.get_item(Key={'qid': domain})
         field = response.get('Item')
 

@@ -9,7 +9,6 @@ from pydantic import BaseModel
 admin_app = FastAPI()
 
 resources = initialize()
-#user_table = resources['user_table']
 admin_table = resources['admin_table']
 
 DOMAIN_MAPPING = {
@@ -59,95 +58,95 @@ async def verify_admin(id_token: str, required_domains: str):
             content={"detail": f"Authentication failed: {str(e)}"}
         )
 
-@admin_app.get('/fetch')
-async def fetch_domains(
-    domain: str,
-    round: int,
-    limit: int = 10,
-    last_evaluated_key: Optional[str] = None,
+class FetchRequest(BaseModel):
+    domain: str
+    round: int
+    status: str
+    limit: int = 3
+    last_evaluated_key: Optional[str] = None
     id_token: str = Depends(get_access_token)
-):
 
+@admin_app.get('/fetch')
+async def fetch_domains(request: FetchRequest):
     try:
-        admin_result = await verify_admin(id_token, [domain])
+        admin_result = await verify_admin(request.id_token, request.domain)
         if isinstance(admin_result, JSONResponse):
             return admin_result
-        
-        
-        if round < 1:
+        if request.round < 1:
             return JSONResponse(
                 status_code=400,
                 content={"detail": "Round number must be greater than 0"}
             )
-        
-        mapped_domain = DOMAIN_MAPPING.get(domain)
+
+        mapped_domain = DOMAIN_MAPPING.get(request.domain)
         if not mapped_domain:
             return JSONResponse(
                 status_code=400,
                 content={"detail": "Invalid domain specified"}
             )
-        
+
         domain_table = resources['domain_tables'].get(mapped_domain)
         if not domain_table:
             return JSONResponse(
                 status_code=500,
                 content={"detail": "Domain table not configured"}
             )
-        
-        scan_params = {'Limit': limit}
-            
-        if round > 1:
-            qualification_attr = f'qualification_status{round-1}'
-            scan_params['FilterExpression'] = f'#{qualification_attr} = :qualified'
-            scan_params['ExpressionAttributeNames'] = {
-                f'#{qualification_attr}': qualification_attr
-            }
-            scan_params['ExpressionAttributeValues'] = {
-                ':qualified': True
-            }
-        
-        if last_evaluated_key:
-            try:
-                scan_params['ExclusiveStartKey'] = {
-                    'email': last_evaluated_key
-                }
-            except Exception as e:
-                return JSONResponse(
-                    status_code=400,
-                    content={"detail": f"Invalid last_evaluated_key format: {str(e)}"}
-                )
 
-        response = domain_table.scan(**scan_params)
-        items = response.get('Items', [])
-        
+        qualification_attr = f'qualification_status{request.round}'
+        filter_expression = None
+        expression_values = {}
+
+        if request.status.lower() == "unmarked":
+            filter_expression = f"attribute_not_exists(#{qualification_attr}) OR #{qualification_attr} = :empty"
+            expression_values = {':empty': None}
+        else:
+            filter_expression = f"#{qualification_attr} = :status"
+            expression_values = {':status': request.status}
+
+        scan_params = {
+            'FilterExpression': filter_expression,
+            'ExpressionAttributeNames': {f'#{qualification_attr}': qualification_attr},
+            'ExpressionAttributeValues': expression_values
+        }
+
+        if request.last_evaluated_key:
+            scan_params['ExclusiveStartKey'] = {'email': request.last_evaluated_key}
+
+        collected_items = []
         last_key = None
-        if response.get('LastEvaluatedKey'):
-            last_key = response['LastEvaluatedKey'].get('uid')
-        
+
+        while len(collected_items) < request.limit:
+            scan_params['Limit'] = request.limit - len(collected_items)
+            response = domain_table.scan(**scan_params)
+
+            items = response.get('Items', [])
+            collected_items.extend(items)
+
+            last_key = response.get('LastEvaluatedKey', {}).get('email')
+
+            if not last_key or len(collected_items) >= request.limit:
+                break
+
+            scan_params['ExclusiveStartKey'] = {'email': last_key}
+
         results = {
             mapped_domain: {
-                'items': items,
+                'items': collected_items[:request.limit],  # Ensure we don't exceed the limit
                 'last_evaluated_key': last_key
             }
         }
-        
-        return {
-            "status_code":200,
-            "content":results
-        }
-        
+
+        return {"status_code": 200, "content": results}
+
     except Exception as e:
         return JSONResponse(
             status_code=400,
             content={"detail": f"Error processing request: {str(e)}"}
         )
 
-from pydantic import BaseModel
-from fastapi import Body
-
 class AddRequest(BaseModel):
     domain: str
-    round: str
+    round: int
     question_data: dict = Body(...)
     id_token: str = Depends(get_access_token)
 
@@ -160,7 +159,8 @@ async def add_question(request: AddRequest):
             return admin_result
         
         quiz_table = resources['quiz_table']
-
+        request.round = f"{request.round}"
+        
         response = quiz_table.get_item(Key={'qid': request.domain})
         field = response.get('Item')
 
@@ -170,13 +170,7 @@ async def add_question(request: AddRequest):
                 request.round: [request.question_data]
             }
         else:
-            if request.round not in field:
-                field[request.round] = []
-            
-            if field[request.round] is None:
-                field[request.round] = []
-            
-            if not isinstance(field[request.round], list):
+            if request.round not in field or field[request.round] is None:
                 field[request.round] = []
             
             field[request.round].append(request.question_data)
@@ -201,7 +195,7 @@ async def add_question(request: AddRequest):
 class QualificationRequest(BaseModel):
     user_email: str
     domain: str
-    status: bool
+    status: str
     round: int
     id_token: str = Depends(get_access_token)
 
@@ -209,6 +203,12 @@ class QualificationRequest(BaseModel):
 async def mark_qualification(request: QualificationRequest):
 
     try:
+        if request.status not in {"qualified", "unqualified", "pending"}:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "Invalid status. Must be 'qualified', 'unqualified', or 'pending'."}
+            )
+        
         admin_result = await verify_admin(request.id_token, request.domain)
         if isinstance(admin_result, JSONResponse):
             return admin_result
@@ -238,7 +238,7 @@ async def mark_qualification(request: QualificationRequest):
             
         if request.round > 1:
             prev_status = user.get(f'qualification_status{request.round-1}')
-            if not prev_status:
+            if prev_status and prev_status.lower() != "qualified":
                 return JSONResponse(
                     status_code=409,
                     content={"detail": f"User {request.user_email} did not qualify in round {request.round-1}"}
@@ -247,10 +247,9 @@ async def mark_qualification(request: QualificationRequest):
         user[f'qualification_status{request.round}'] = request.status
         domain_table.put_item(Item=user)
         
-        qualification = "qualified" if request.status else "disqualified"
         return JSONResponse(
             status_code=200,
-            content={"detail": f"User {request.user_email} {qualification} for round {request.round}"}
+            content={"detail": f"User {request.user_email} marked as {request.status} for round {request.round}"}
         )
         
     except Exception as e:
