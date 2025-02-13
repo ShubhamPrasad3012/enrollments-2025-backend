@@ -5,6 +5,7 @@ from middleware.verifyToken import get_access_token
 from config import initialize
 from fastapi.responses import JSONResponse
 import json
+import random
 
 domain_app = FastAPI()
 
@@ -38,7 +39,7 @@ async def post_domain(domain: Dict[str, List[str]], id_token: str = Depends(get_
     
     except Exception as e:
         raise HTTPException(status_code=400, content=f"Error: {str(e)}")
-    
+
 @domain_app.get('/questions')
 async def get_qs(domain: str, round: str, id_token: str = Depends(get_access_token)):
     try:
@@ -54,20 +55,18 @@ async def get_qs(domain: str, round: str, id_token: str = Depends(get_access_tok
         if not round_data:
             return JSONResponse(status_code=401, content=f"Round {round} Questions not found")
 
+        sampled_questions = random.sample(round_data, min(10, len(round_data)))
+
         formatted_questions = [
             {
                 "question": q["question"],
                 **({"options": q["options"]} if "options" in q else {}),
                 **({"correctAnswer": int(q["correctIndex"])} if "correctIndex" in q else {})
             }
-            for q in round_data
+            for q in sampled_questions
         ]
 
-        cookie_duration = 10 * 60
-
         response_obj = Response(content=json.dumps({"questions": formatted_questions}), media_type="application/json")
-
-        response_obj.headers["Set-Cookie"] = f"{domain}-quizTimer=active; Max-Age={cookie_duration}; Path=/; HttpOnly; Secure"
 
         return response_obj
     

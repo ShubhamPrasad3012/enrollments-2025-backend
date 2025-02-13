@@ -30,6 +30,7 @@ def initialize():
     }
 
     user_table = dynamodb.Table("enrollments-site-users")
+    admin_table = dynamodb.Table("enrollments-site-admins")
     quiz_table = dynamodb.Table("enrollments-site-quiz")
     interview_table = dynamodb.Table("enrollments-site-interview")
 
@@ -47,6 +48,7 @@ def initialize():
     return {
         'firebase_app': firebase_app,
         'user_table': user_table,
+        'admin_table':admin_table,
         'quiz_table': quiz_table,
         'interview_table': interview_table,
         'domain_tables': domain_tables

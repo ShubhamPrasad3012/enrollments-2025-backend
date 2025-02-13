@@ -51,7 +51,6 @@ async def post_answers(answerReq: AnswerStruct, idToken: str = Depends(get_acces
             return JSONResponse(status_code=404, content="User not found.")
         
         flat_domains = list(chain.from_iterable(user.get("domain", []).values()))
-        print(flat_domains)
         if answerReq.domain not in flat_domains:
             return JSONResponse(status_code=408, content="Domain was not selected")
         mapped_domain = domain_mapping.get(answerReq.domain)
