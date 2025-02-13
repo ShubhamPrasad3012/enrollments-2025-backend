@@ -1,9 +1,9 @@
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, Body
 from middleware.verifyToken import get_access_token
 from config import initialize
 from fastapi.responses import JSONResponse
 from firebase_admin import auth
-from typing import Optional, Dict, List
+from typing import Optional
 from pydantic import BaseModel
 
 admin_app = FastAPI()
@@ -142,6 +142,62 @@ async def fetch_domains(
             content={"detail": f"Error processing request: {str(e)}"}
         )
 
+from pydantic import BaseModel
+from fastapi import Body
+
+class AddRequest(BaseModel):
+    domain: str
+    round: str
+    question_data: dict = Body(...)
+    id_token: str = Depends(get_access_token)
+
+@admin_app.post('/questions')
+async def add_question(request: AddRequest):
+
+    try:
+        admin_result = await verify_admin(request.id_token, request.domain)
+        if isinstance(admin_result, JSONResponse):
+            return admin_result
+        
+        quiz_table = resources['quiz_table']
+
+        response = quiz_table.get_item(Key={'qid': request.domain})
+        field = response.get('Item')
+
+        if not field:
+            field = {
+                'qid': request.domain,
+                request.round: [request.question_data]
+            }
+        else:
+            if request.round not in field:
+                field[request.round] = []
+            
+            if field[request.round] is None:
+                field[request.round] = []
+            
+            if not isinstance(field[request.round], list):
+                field[request.round] = []
+            
+            field[request.round].append(request.question_data)
+
+        quiz_table.put_item(Item=field)
+
+        return JSONResponse(
+            status_code=200, 
+            content={
+                "detail": "Question added successfully",
+                "total_questions": len(field[request.round])
+            }
+        )
+    
+    except Exception as e:
+        print(f"Error details: {str(e)}") 
+        return JSONResponse(
+            status_code=400, 
+            content={"detail": f"Error processing request: {str(e)}"}
+        )
+    
 class QualificationRequest(BaseModel):
     user_email: str
     domain: str
