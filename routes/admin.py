@@ -24,9 +24,9 @@ DOMAIN_MAPPING = {
     'RND': 'rnd'
 }
 
-async def verify_admin(id_token: str, required_domains: str):
+async def verify_admin(authorization: str, required_domain: str):
     try:
-        decoded_token = auth.verify_id_token(id_token, app=resources['firebase_app'])
+        decoded_token = auth.verify_id_token(authorization, app=resources['firebase_app'])
         email = decoded_token.get('email')
         if not email:
             return JSONResponse(
@@ -43,9 +43,10 @@ async def verify_admin(id_token: str, required_domains: str):
                 content={"detail": "Access denied: Not an admin"}
             )
             
-        if required_domains:
+        if required_domain:
             allowed_domains = admin.get('allowed_domains', [])
-            if not any(domain in allowed_domains for domain in required_domains):
+            print(allowed_domains)
+            if required_domain not in allowed_domains:
                 return JSONResponse(
                     status_code=403,
                     content={"detail": "Access denied: No permission for this domain"}
@@ -64,12 +65,12 @@ class FetchRequest(BaseModel):
     status: str
     limit: int = 3
     last_evaluated_key: Optional[str] = None
-    id_token: str = Depends(get_access_token)
 
 @admin_app.get('/fetch')
-async def fetch_domains(request: FetchRequest):
+async def fetch_domains(request: FetchRequest, authorization: str = Depends(get_access_token)):
     try:
-        admin_result = await verify_admin(request.id_token, request.domain)
+
+        admin_result = await verify_admin(authorization, request.domain)
         if isinstance(admin_result, JSONResponse):
             return admin_result
         if request.round < 1:
@@ -148,13 +149,12 @@ class AddRequest(BaseModel):
     domain: str
     round: int
     question_data: dict = Body(...)
-    id_token: str = Depends(get_access_token)
 
 @admin_app.post('/questions')
-async def add_question(request: AddRequest):
+async def add_question(request: AddRequest, authorization: str = Depends(get_access_token)):
 
     try:
-        admin_result = await verify_admin(request.id_token, request.domain)
+        admin_result = await verify_admin(authorization, request.domain)
         if isinstance(admin_result, JSONResponse):
             return admin_result
         
@@ -197,10 +197,9 @@ class QualificationRequest(BaseModel):
     domain: str
     status: str
     round: int
-    id_token: str = Depends(get_access_token)
 
 @admin_app.post('/qualify')
-async def mark_qualification(request: QualificationRequest):
+async def mark_qualification(request: QualificationRequest, authorization: str = Depends(get_access_token)):
 
     try:
         if request.status not in {"qualified", "unqualified", "pending"}:
@@ -209,7 +208,7 @@ async def mark_qualification(request: QualificationRequest):
                 content={"detail": "Invalid status. Must be 'qualified', 'unqualified', or 'pending'."}
             )
         
-        admin_result = await verify_admin(request.id_token, request.domain)
+        admin_result = await verify_admin(authorization, request.domain)
         if isinstance(admin_result, JSONResponse):
             return admin_result
         
