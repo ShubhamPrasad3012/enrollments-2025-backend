@@ -1,10 +1,18 @@
-from fastapi import FastAPI, Depends, Body
+from fastapi import FastAPI, Depends, File, UploadFile, Form
 from middleware.verifyToken import get_access_token
 from config import initialize
 from fastapi.responses import JSONResponse
 from firebase_admin import auth
-from typing import Optional
+from typing import Optional, List
 from pydantic import BaseModel
+import os
+import uuid
+from datetime import datetime
+import boto3
+
+S3_BUCKET_NAME = os.getenv('MY_S3_BUCKET_NAME')
+if not S3_BUCKET_NAME:
+    raise ValueError("S3_BUCKET_NAME environment variable is not set")
 
 admin_app = FastAPI()
 
@@ -35,6 +43,7 @@ async def verify_admin(authorization: str, required_domain: str):
             )
         
         admin_response = admin_table.get_item(Key={'email': email})
+
         admin = admin_response.get('Item')
         
         if not admin:
@@ -45,7 +54,6 @@ async def verify_admin(authorization: str, required_domain: str):
             
         if required_domain:
             allowed_domains = admin.get('allowed_domains', [])
-            print(allowed_domains)
             if required_domain not in allowed_domains:
                 return JSONResponse(
                     status_code=403,
@@ -132,7 +140,7 @@ async def fetch_domains(request: FetchRequest, authorization: str = Depends(get_
 
         results = {
             mapped_domain: {
-                'items': collected_items[:request.limit],  # Ensure we don't exceed the limit
+                'items': collected_items[:request.limit], 
                 'last_evaluated_key': last_key
             }
         }
@@ -145,53 +153,86 @@ async def fetch_domains(request: FetchRequest, authorization: str = Depends(get_
             content={"detail": f"Error processing request: {str(e)}"}
         )
 
+class QuestionData(BaseModel):
+    text: str
+    options: list
+    correct_answer: str
+    image: Optional[UploadFile] = None
+
 class AddRequest(BaseModel):
     domain: str
     round: int
-    question_data: dict = Body(...)
+    question_data: QuestionData
+
+async def upload_to_s3(file: UploadFile, bucket_name: str) -> str:
+    s3_client = boto3.client('s3')
+    
+    file_extension = file.filename.split('.')[-1]
+    unique_filename = f"{uuid.uuid4()}-{datetime.now().strftime('%Y%m%d-%H%M%S')}.{file_extension}"
+    
+    s3_client.upload_fileobj(
+        file.file,
+        bucket_name,
+        unique_filename,
+        ExtraArgs={
+            "ContentType": file.content_type
+        }
+    )
+    
+    url = f"https://{bucket_name}.s3.amazonaws.com/{unique_filename}"
+    return url
 
 @admin_app.post('/questions')
-async def add_question(request: AddRequest, authorization: str = Depends(get_access_token)):
-
+async def add_question(
+    domain: str = Form(...),
+    round: int = Form(...),
+    text: str = Form(...),
+    options: Optional[List[str]] = Form(None),
+    correct_answer: Optional[int] = Form(None),  
+    image: Optional[UploadFile] = File(None), 
+    authorization: str = Depends(get_access_token)
+):
     try:
-        admin_result = await verify_admin(authorization, request.domain)
+        admin_result = await verify_admin(authorization, domain)
         if isinstance(admin_result, JSONResponse):
             return admin_result
-        
+
         quiz_table = resources['quiz_table']
-        request.round = f"{request.round}"
-        
-        response = quiz_table.get_item(Key={'qid': request.domain})
+
+        question_data_dict = {"text": text}
+
+        if options:
+            question_data_dict["options"] = options
+        if correct_answer:
+            question_data_dict["correct_answer"] = correct_answer
+        if image:
+            image_url = await upload_to_s3(image, bucket_name=S3_BUCKET_NAME)
+            question_data_dict["image_url"] = image_url
+
+        response = quiz_table.get_item(Key={'qid': domain})
         field = response.get('Item')
 
         if not field:
-            field = {
-                'qid': request.domain,
-                request.round: [request.question_data]
-            }
+            field = {'qid': domain, str(round): [question_data_dict]}
         else:
-            if request.round not in field or field[request.round] is None:
-                field[request.round] = []
-            
-            field[request.round].append(request.question_data)
+            if str(round) not in field or field[str(round)] is None:
+                field[str(round)] = []
+            field[str(round)].append(question_data_dict)
 
         quiz_table.put_item(Item=field)
 
         return JSONResponse(
             status_code=200, 
-            content={
-                "detail": "Question added successfully",
-                "total_questions": len(field[request.round])
-            }
+            content={"detail": "Question added successfully", "total_questions": len(field[str(round)])}
         )
-    
+
     except Exception as e:
-        print(f"Error details: {str(e)}") 
         return JSONResponse(
             status_code=400, 
             content={"detail": f"Error processing request: {str(e)}"}
         )
-    
+
+  
 class QualificationRequest(BaseModel):
     user_email: str
     domain: str
