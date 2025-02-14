@@ -59,7 +59,7 @@ async def get_qs(domain: str, round: str, id_token: str = Depends(get_access_tok
         print(sampled_questions)
         formatted_questions = [
             {
-                "text": q["text"],
+                "question": q["question"],
                 **({"options": q["options"]} if "options" in q else {}),
                 **({"correctAnswer": int(q["correctIndex"])} if "correctIndex" in q else {}),
                 **({"image_url": str(q["image_url"])} if "image_url" in q else {})

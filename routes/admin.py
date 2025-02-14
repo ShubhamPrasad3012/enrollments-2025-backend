@@ -154,7 +154,7 @@ async def fetch_domains(request: FetchRequest, authorization: str = Depends(get_
         )
 
 class QuestionData(BaseModel):
-    text: str
+    question: str
     options: list
     correct_answer: str
     image: Optional[UploadFile] = None
@@ -186,7 +186,7 @@ async def upload_to_s3(file: UploadFile, bucket_name: str) -> str:
 async def add_question(
     domain: str = Form(...),
     round: int = Form(...),
-    text: str = Form(...),
+    question: str = Form(...),
     options: Optional[List[str]] = Form(None),
     correct_answer: Optional[int] = Form(None),  
     image: Optional[UploadFile] = File(None), 
@@ -199,7 +199,7 @@ async def add_question(
 
         quiz_table = resources['quiz_table']
 
-        question_data_dict = {"text": text}
+        question_data_dict = {"question": question}
 
         if options:
             question_data_dict["options"] = options
