@@ -56,15 +56,17 @@ async def get_qs(domain: str, round: str, id_token: str = Depends(get_access_tok
             return JSONResponse(status_code=401, content=f"Round {round} Questions not found")
 
         sampled_questions = random.sample(round_data, min(10, len(round_data)))
-
+        print(sampled_questions)
         formatted_questions = [
             {
-                "question": q["question"],
+                "text": q["text"],
                 **({"options": q["options"]} if "options" in q else {}),
-                **({"correctAnswer": int(q["correctIndex"])} if "correctIndex" in q else {})
+                **({"correctAnswer": int(q["correctIndex"])} if "correctIndex" in q else {}),
+                **({"image_url": str(q["image_url"])} if "image_url" in q else {})
             }
             for q in sampled_questions
         ]
+        print(formatted_questions)
 
         response_obj = Response(content=json.dumps({"questions": formatted_questions}), media_type="application/json")
 
