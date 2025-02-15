@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends
-from typing import List, Optional
+from typing import List, Optional, Union
 from pydantic import BaseModel, Field
 from middleware.verifyToken import get_access_token
 from firebase_admin import auth
@@ -18,7 +18,7 @@ firebase_app = resources['firebase_app']
 class AnswerStruct(BaseModel):
     domain: str = Field(...)
     questions: List[str] = Field(...)
-    answers: List[str] = Field(...)
+    answers: List[Union[str, List[str]]] = Field(...)
     score: Optional[int] = Field(None)
     round: int
 

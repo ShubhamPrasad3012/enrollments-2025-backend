@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, File, UploadFile, Form
+from fastapi import FastAPI, Depends, File, UploadFile, Form, Query
 from middleware.verifyToken import get_access_token
 from config import initialize
 from fastapi.responses import JSONResponse
@@ -9,6 +9,7 @@ import os
 import uuid
 from datetime import datetime
 import boto3
+import json
 
 S3_BUCKET_NAME = os.getenv('MY_S3_BUCKET_NAME')
 if not S3_BUCKET_NAME:
@@ -71,7 +72,7 @@ class FetchRequest(BaseModel):
     domain: str
     round: int
     status: str
-    limit: int = 3
+    limit: int = 10
     last_evaluated_key: Optional[str] = None
 
 @admin_app.get('/fetch')
@@ -187,7 +188,7 @@ async def add_question(
     domain: str = Form(...),
     round: int = Form(...),
     question: str = Form(...),
-    options: Optional[List[str]] = Form(None),
+    options: Optional[List[str]] = Query,
     correct_answer: Optional[int] = Form(None),  
     image: Optional[UploadFile] = File(None), 
     authorization: str = Depends(get_access_token)
@@ -196,13 +197,15 @@ async def add_question(
         admin_result = await verify_admin(authorization, domain)
         if isinstance(admin_result, JSONResponse):
             return admin_result
-
         quiz_table = resources['quiz_table']
+        options = (options[0])
 
         question_data_dict = {"question": question}
-
-        if options:
+        
+        if options:  
+            options=json.loads(options)
             question_data_dict["options"] = options
+            
         if correct_answer:
             question_data_dict["correct_answer"] = correct_answer
         if image:
