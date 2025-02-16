@@ -68,27 +68,27 @@ async def verify_admin(authorization: str, required_domain: str):
             content={"detail": f"Authentication failed: {str(e)}"}
         )
 
-class FetchRequest(BaseModel):
-    domain: str
-    round: int
-    status: str
-    limit: int = 10
-    last_evaluated_key: Optional[str] = None
-
 @admin_app.get('/fetch')
-async def fetch_domains(request: FetchRequest, authorization: str = Depends(get_access_token)):
+async def fetch_domains(
+    domain: str,
+    round: int,
+    status: str,
+    last_evaluated_key: Optional[str] = Query(None),
+    authorization: str = Depends(get_access_token)
+):
     try:
-
-        admin_result = await verify_admin(authorization, request.domain)
+        print(domain, round, status, last_evaluated_key)
+        admin_result = await verify_admin(authorization, domain)
         if isinstance(admin_result, JSONResponse):
             return admin_result
-        if request.round < 1:
+
+        if round < 1:
             return JSONResponse(
                 status_code=400,
                 content={"detail": "Round number must be greater than 0"}
             )
 
-        mapped_domain = DOMAIN_MAPPING.get(request.domain)
+        mapped_domain = DOMAIN_MAPPING.get(domain)
         if not mapped_domain:
             return JSONResponse(
                 status_code=400,
@@ -102,16 +102,16 @@ async def fetch_domains(request: FetchRequest, authorization: str = Depends(get_
                 content={"detail": "Domain table not configured"}
             )
 
-        qualification_attr = f'qualification_status{request.round}'
+        qualification_attr = f'qualification_status{round}'
         filter_expression = None
         expression_values = {}
 
-        if request.status.lower() == "unmarked":
+        if status.lower() == "unmarked":
             filter_expression = f"attribute_not_exists(#{qualification_attr}) OR #{qualification_attr} = :empty"
             expression_values = {':empty': None}
         else:
             filter_expression = f"#{qualification_attr} = :status"
-            expression_values = {':status': request.status}
+            expression_values = {':status': status}
 
         scan_params = {
             'FilterExpression': filter_expression,
@@ -119,14 +119,13 @@ async def fetch_domains(request: FetchRequest, authorization: str = Depends(get_
             'ExpressionAttributeValues': expression_values
         }
 
-        if request.last_evaluated_key:
-            scan_params['ExclusiveStartKey'] = {'email': request.last_evaluated_key}
+        if last_evaluated_key and last_evaluated_key != "start":
+            scan_params['ExclusiveStartKey'] = {'email': last_evaluated_key}
 
         collected_items = []
-        last_key = None
 
-        while len(collected_items) < request.limit:
-            scan_params['Limit'] = request.limit - len(collected_items)
+        while len(collected_items) < 10:
+            scan_params['Limit'] = 10 - len(collected_items)
             response = domain_table.scan(**scan_params)
 
             items = response.get('Items', [])
@@ -134,17 +133,15 @@ async def fetch_domains(request: FetchRequest, authorization: str = Depends(get_
 
             last_key = response.get('LastEvaluatedKey', {}).get('email')
 
-            if not last_key or len(collected_items) >= request.limit:
+            if not last_key or len(collected_items) >= 10:
                 break
 
             scan_params['ExclusiveStartKey'] = {'email': last_key}
-
         results = {
-            mapped_domain: {
-                'items': collected_items[:request.limit], 
-                'last_evaluated_key': last_key
-            }
+            'items': collected_items[:10],
+            'last_evaluated_key': last_key
         }
+        print(last_key)
 
         return {"status_code": 200, "content": results}
 
@@ -157,7 +154,7 @@ async def fetch_domains(request: FetchRequest, authorization: str = Depends(get_
 class QuestionData(BaseModel):
     question: str
     options: list
-    correct_answer: str
+    correctIndex: str
     image: Optional[UploadFile] = None
 
 class AddRequest(BaseModel):
@@ -186,10 +183,10 @@ async def upload_to_s3(file: UploadFile, bucket_name: str) -> str:
 @admin_app.post('/questions')
 async def add_question(
     domain: str = Form(...),
-    round: int = Form(...),
+    round: str = Form(...),
     question: str = Form(...),
-    options: Optional[List[str]] = Query,
-    correct_answer: Optional[int] = Form(None),  
+    options: Optional[List[str]] = Form([]),
+    correctIndex: Optional[str] = Form(None),  
     image: Optional[UploadFile] = File(None), 
     authorization: str = Depends(get_access_token)
 ):
@@ -198,16 +195,16 @@ async def add_question(
         if isinstance(admin_result, JSONResponse):
             return admin_result
         quiz_table = resources['quiz_table']
-        options = (options[0])
-
+        
         question_data_dict = {"question": question}
         
         if options:  
+            options=options[0]
             options=json.loads(options)
             question_data_dict["options"] = options
             
-        if correct_answer:
-            question_data_dict["correct_answer"] = correct_answer
+        if correctIndex:
+            question_data_dict["correctIndex"] = int(correctIndex)
         if image:
             image_url = await upload_to_s3(image, bucket_name=S3_BUCKET_NAME)
             question_data_dict["image_url"] = image_url
@@ -218,15 +215,15 @@ async def add_question(
         if not field:
             field = {'qid': domain, str(round): [question_data_dict]}
         else:
-            if str(round) not in field or field[str(round)] is None:
-                field[str(round)] = []
-            field[str(round)].append(question_data_dict)
+            if round not in field or field[round] is None:
+                field[round] = []
+            field[round].append(question_data_dict)
 
         quiz_table.put_item(Item=field)
 
         return JSONResponse(
             status_code=200, 
-            content={"detail": "Question added successfully", "total_questions": len(field[str(round)])}
+            content={"detail": "Question added successfully", "total_questions": len(field[round])}
         )
 
     except Exception as e:

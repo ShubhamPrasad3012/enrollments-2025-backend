@@ -2,7 +2,6 @@ from fastapi import Request, HTTPException, Header, Depends
 from typing import Optional
 
 def get_access_token(request: Request, authorization: Optional[str] = Header(None)) -> Optional[str]:
-    print('hello')
     if authorization is None:
         raise HTTPException(status_code=402, detail="Authorization token is missing")
     
