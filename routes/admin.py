@@ -1,0 +1,299 @@
+from fastapi import FastAPI, Depends, File, UploadFile, Form, Query
+from middleware.verifyToken import get_access_token
+from config import initialize
+from fastapi.responses import JSONResponse
+from firebase_admin import auth
+from typing import Optional, List
+from pydantic import BaseModel
+import os
+import uuid
+from datetime import datetime
+import boto3
+import json
+
+S3_BUCKET_NAME = os.getenv('MY_S3_BUCKET_NAME')
+if not S3_BUCKET_NAME:
+    raise ValueError("S3_BUCKET_NAME environment variable is not set")
+
+admin_app = FastAPI()
+
+resources = initialize()
+admin_table = resources['admin_table']
+
+DOMAIN_MAPPING = {
+    "UI/UX": "ui",
+    "GRAPHIC DESIGN": "graphic",
+    "VIDEO EDITING": "video",
+    'EVENTS': 'events',
+    'PNM': 'pnm',
+    'WEB': 'web',
+    'IOT': 'iot',
+    'APP': 'app',
+    'AI/ML': 'ai',
+    'RND': 'rnd'
+}
+
+async def verify_admin(authorization: str, required_domain: str):
+    try:
+        decoded_token = auth.verify_id_token(authorization, app=resources['firebase_app'])
+        email = decoded_token.get('email')
+        if not email:
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Authentication failed: No email in token"}
+            )
+        
+        admin_response = admin_table.get_item(Key={'email': email})
+
+        admin = admin_response.get('Item')
+        
+        if not admin:
+            return JSONResponse(
+                status_code=403,
+                content={"detail": "Access denied: Not an admin"}
+            )
+            
+        if required_domain:
+            allowed_domains = admin.get('allowed_domains', [])
+            if required_domain not in allowed_domains:
+                return JSONResponse(
+                    status_code=403,
+                    content={"detail": "Access denied: No permission for this domain"}
+                )
+                
+        return admin
+    except Exception as e:
+        return JSONResponse(
+            status_code=401,
+            content={"detail": f"Authentication failed: {str(e)}"}
+        )
+
+@admin_app.get('/fetch')
+async def fetch_domains(
+    domain: str,
+    round: int,
+    status: str,
+    last_evaluated_key: Optional[str] = Query(None),
+    authorization: str = Depends(get_access_token)
+):
+    try:
+        print(domain, round, status, last_evaluated_key)
+        admin_result = await verify_admin(authorization, domain)
+        if isinstance(admin_result, JSONResponse):
+            return admin_result
+
+        if round < 1:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "Round number must be greater than 0"}
+            )
+
+        mapped_domain = DOMAIN_MAPPING.get(domain)
+        if not mapped_domain:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "Invalid domain specified"}
+            )
+
+        domain_table = resources['domain_tables'].get(mapped_domain)
+        if not domain_table:
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Domain table not configured"}
+            )
+
+        qualification_attr = f'qualification_status{round}'
+        filter_expression = None
+        expression_values = {}
+
+        if status.lower() == "unmarked":
+            filter_expression = f"attribute_not_exists(#{qualification_attr}) OR #{qualification_attr} = :empty"
+            expression_values = {':empty': None}
+        else:
+            filter_expression = f"#{qualification_attr} = :status"
+            expression_values = {':status': status}
+
+        scan_params = {
+            'FilterExpression': filter_expression,
+            'ExpressionAttributeNames': {f'#{qualification_attr}': qualification_attr},
+            'ExpressionAttributeValues': expression_values
+        }
+
+        if last_evaluated_key and last_evaluated_key != "start":
+            scan_params['ExclusiveStartKey'] = {'email': last_evaluated_key}
+
+        collected_items = []
+
+        while len(collected_items) < 10:
+            scan_params['Limit'] = 10 - len(collected_items)
+            response = domain_table.scan(**scan_params)
+
+            items = response.get('Items', [])
+            collected_items.extend(items)
+
+            last_key = response.get('LastEvaluatedKey', {}).get('email')
+
+            if not last_key or len(collected_items) >= 10:
+                break
+
+            scan_params['ExclusiveStartKey'] = {'email': last_key}
+        results = {
+            'items': collected_items[:10],
+            'last_evaluated_key': last_key
+        }
+        print(last_key)
+
+        return {"status_code": 200, "content": results}
+
+    except Exception as e:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": f"Error processing request: {str(e)}"}
+        )
+
+class QuestionData(BaseModel):
+    question: str
+    options: list
+    correctIndex: str
+    image: Optional[UploadFile] = None
+
+class AddRequest(BaseModel):
+    domain: str
+    round: int
+    question_data: QuestionData
+
+async def upload_to_s3(file: UploadFile, bucket_name: str) -> str:
+    s3_client = boto3.client('s3')
+    
+    file_extension = file.filename.split('.')[-1]
+    unique_filename = f"{uuid.uuid4()}-{datetime.now().strftime('%Y%m%d-%H%M%S')}.{file_extension}"
+    
+    s3_client.upload_fileobj(
+        file.file,
+        bucket_name,
+        unique_filename,
+        ExtraArgs={
+            "ContentType": file.content_type
+        }
+    )
+    
+    url = f"https://{bucket_name}.s3.amazonaws.com/{unique_filename}"
+    return url
+
+@admin_app.post('/questions')
+async def add_question(
+    domain: str = Form(...),
+    round: str = Form(...),
+    question: str = Form(...),
+    options: Optional[List[str]] = Form([]),
+    correctIndex: Optional[str] = Form(None),  
+    image: Optional[UploadFile] = File(None), 
+    authorization: str = Depends(get_access_token)
+):
+    try:
+        admin_result = await verify_admin(authorization, domain)
+        if isinstance(admin_result, JSONResponse):
+            return admin_result
+        quiz_table = resources['quiz_table']
+        
+        question_data_dict = {"question": question}
+        
+        if options:  
+            options=options[0]
+            options=json.loads(options)
+            question_data_dict["options"] = options
+            
+        if correctIndex:
+            question_data_dict["correctIndex"] = int(correctIndex)
+        if image:
+            image_url = await upload_to_s3(image, bucket_name=S3_BUCKET_NAME)
+            question_data_dict["image_url"] = image_url
+
+        response = quiz_table.get_item(Key={'qid': domain})
+        field = response.get('Item')
+
+        if not field:
+            field = {'qid': domain, str(round): [question_data_dict]}
+        else:
+            if round not in field or field[round] is None:
+                field[round] = []
+            field[round].append(question_data_dict)
+
+        quiz_table.put_item(Item=field)
+
+        return JSONResponse(
+            status_code=200, 
+            content={"detail": "Question added successfully", "total_questions": len(field[round])}
+        )
+
+    except Exception as e:
+        return JSONResponse(
+            status_code=400, 
+            content={"detail": f"Error processing request: {str(e)}"}
+        )
+
+  
+class QualificationRequest(BaseModel):
+    user_email: str
+    domain: str
+    status: str
+    round: int
+
+@admin_app.post('/qualify')
+async def mark_qualification(request: QualificationRequest, authorization: str = Depends(get_access_token)):
+
+    try:
+        if request.status not in {"qualified", "unqualified", "pending"}:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "Invalid status. Must be 'qualified', 'unqualified', or 'pending'."}
+            )
+        
+        admin_result = await verify_admin(authorization, request.domain)
+        if isinstance(admin_result, JSONResponse):
+            return admin_result
+        
+        mapped_domain = DOMAIN_MAPPING.get(request.domain)
+        if not mapped_domain:
+            return JSONResponse(
+                status_code=400,
+                content={"detail": "Invalid domain specified"}
+            )
+            
+        domain_table = resources['domain_tables'].get(mapped_domain)
+        if not domain_table:
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Domain table not configured"}
+            )
+            
+        user_response = domain_table.get_item(Key={'email': request.user_email})
+        user = user_response.get('Item')
+        
+        if not user:
+            return JSONResponse(
+                status_code=404,
+                content={"detail": "User not found"}
+            )
+            
+        if request.round > 1:
+            prev_status = user.get(f'qualification_status{request.round-1}')
+            if prev_status and prev_status.lower() != "qualified":
+                return JSONResponse(
+                    status_code=409,
+                    content={"detail": f"User {request.user_email} did not qualify in round {request.round-1}"}
+                )
+        
+        user[f'qualification_status{request.round}'] = request.status
+        domain_table.put_item(Item=user)
+        
+        return JSONResponse(
+            status_code=200,
+            content={"detail": f"User {request.user_email} marked as {request.status} for round {request.round}"}
+        )
+        
+    except Exception as e:
+        return JSONResponse(
+            status_code=400,
+            content={"detail": f"Error processing request: {str(e)}"}
+        )

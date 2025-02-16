@@ -1,9 +1,11 @@
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, Response
 from firebase_admin import auth
 from typing import List, Dict
 from middleware.verifyToken import get_access_token
 from config import initialize
 from fastapi.responses import JSONResponse
+import json
+import random
 
 domain_app = FastAPI()
 
@@ -37,7 +39,7 @@ async def post_domain(domain: Dict[str, List[str]], id_token: str = Depends(get_
     
     except Exception as e:
         raise HTTPException(status_code=400, content=f"Error: {str(e)}")
-    
+
 @domain_app.get('/questions')
 async def get_qs(domain: str, round: str, id_token: str = Depends(get_access_token)):
     try:
@@ -45,25 +47,28 @@ async def get_qs(domain: str, round: str, id_token: str = Depends(get_access_tok
         email = decoded_token.get('email')
         response = quiz_table.get_item(Key={'qid': domain})
         field = response.get('Item')
+
         if not field:
             return JSONResponse(status_code=404, content="Invalid domain")
 
         round_data = field.get(round)
         if not round_data:
             return JSONResponse(status_code=401, content=f"Round {round} Questions not found")
-        formatted_questions = []
 
-        for question in round_data:  
-            formatted_question = {"question": question["question"]}
-            if "options" in question:
-                formatted_question["options"] = question["options"]
+        sampled_questions = random.sample(round_data, min(10, len(round_data)))
+        formatted_questions = [
+            {
+                "question": q["question"],
+                **({"options": q["options"]} if "options" in q else {}),
+                **({"correctAnswer": int(q["correctIndex"])} if "correctIndex" in q else {}),
+                **({"image_url": str(q["image_url"])} if "image_url" in q else {})
+            }
+            for q in sampled_questions
+        ]
 
-            if "correctIndex" in question:
-                formatted_question["correctAnswer"] = int(question["correctIndex"])
+        response_obj = Response(content=json.dumps({"questions": formatted_questions}), media_type="application/json")
 
-            formatted_questions.append(formatted_question)
-
-        return {"questions": formatted_questions}
-
+        return response_obj
+    
     except Exception as e:
-        raise HTTPException(status_code=400, content=f"Error: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Error: {str(e)}")

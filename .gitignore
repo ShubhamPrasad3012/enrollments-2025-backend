@@ -17,7 +17,7 @@ env.bak/
 .idea/
 .vscode/
 *.swp
-
+script.py
 # Logs and output
 *.log
 *.out

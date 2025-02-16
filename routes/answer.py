@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends
-from typing import List, Optional
+from typing import List, Optional, Union
 from pydantic import BaseModel, Field
 from middleware.verifyToken import get_access_token
 from firebase_admin import auth
@@ -18,7 +18,7 @@ firebase_app = resources['firebase_app']
 class AnswerStruct(BaseModel):
     domain: str = Field(...)
     questions: List[str] = Field(...)
-    answers: List[str] = Field(...)
+    answers: List[Union[str, List[str]]] = Field(...)
     score: Optional[int] = Field(None)
     round: int
 
@@ -51,7 +51,6 @@ async def post_answers(answerReq: AnswerStruct, idToken: str = Depends(get_acces
             return JSONResponse(status_code=404, content="User not found.")
         
         flat_domains = list(chain.from_iterable(user.get("domain", []).values()))
-        print(flat_domains)
         if answerReq.domain not in flat_domains:
             return JSONResponse(status_code=408, content="Domain was not selected")
         mapped_domain = domain_mapping.get(answerReq.domain)
