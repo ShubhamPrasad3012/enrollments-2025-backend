@@ -284,8 +284,9 @@ async def mark_qualification(request: QualificationRequest, authorization: str =
                     content={"detail": f"User {request.user_email} did not qualify in round {request.round-1}"}
                 )
         
-        user[f'qualification_status{request.round}'] = request.status
+        user.setdefault(f'qualification_status{request.round}', {})[f'{request.domain}'] = request.status
         domain_table.put_item(Item=user)
+        
         
         return JSONResponse(
             status_code=200,
