@@ -46,13 +46,13 @@ async def verify_admin(authorization: str, required_domain: str):
         admin_response = admin_table.get_item(Key={'email': email})
 
         admin = admin_response.get('Item')
-        
+
         if not admin:
             return JSONResponse(
                 status_code=403,
                 content={"detail": "Access denied: Not an admin"}
             )
-            
+
         if required_domain:
             allowed_domains = admin.get('allowed_domains', [])
             if required_domain not in allowed_domains:
@@ -60,7 +60,7 @@ async def verify_admin(authorization: str, required_domain: str):
                     status_code=403,
                     content={"detail": "Access denied: No permission for this domain"}
                 )
-                
+
         return admin
     except Exception as e:
         return JSONResponse(
@@ -164,10 +164,10 @@ class AddRequest(BaseModel):
 
 async def upload_to_s3(file: UploadFile, bucket_name: str) -> str:
     s3_client = boto3.client('s3')
-    
+
     file_extension = file.filename.split('.')[-1]
     unique_filename = f"{uuid.uuid4()}-{datetime.now().strftime('%Y%m%d-%H%M%S')}.{file_extension}"
-    
+
     s3_client.upload_fileobj(
         file.file,
         bucket_name,
@@ -176,7 +176,7 @@ async def upload_to_s3(file: UploadFile, bucket_name: str) -> str:
             "ContentType": file.content_type
         }
     )
-    
+
     url = f"https://{bucket_name}.s3.amazonaws.com/{unique_filename}"
     return url
 
@@ -186,8 +186,8 @@ async def add_question(
     round: str = Form(...),
     question: str = Form(...),
     options: Optional[List[str]] = Form([]),
-    correctIndex: Optional[str] = Form(None),  
-    image: Optional[UploadFile] = File(None), 
+    correctIndex: Optional[str] = Form(None),
+    image: Optional[UploadFile] = File(None),
     authorization: str = Depends(get_access_token)
 ):
     try:
@@ -195,14 +195,14 @@ async def add_question(
         if isinstance(admin_result, JSONResponse):
             return admin_result
         quiz_table = resources['quiz_table']
-        
+
         question_data_dict = {"question": question}
-        
-        if options:  
+
+        if options:
             options=options[0]
             options=json.loads(options)
             question_data_dict["options"] = options
-            
+
         if correctIndex:
             question_data_dict["correctIndex"] = int(correctIndex)
         if image:
@@ -222,17 +222,17 @@ async def add_question(
         quiz_table.put_item(Item=field)
 
         return JSONResponse(
-            status_code=200, 
+            status_code=200,
             content={"detail": "Question added successfully", "total_questions": len(field[round])}
         )
 
     except Exception as e:
         return JSONResponse(
-            status_code=400, 
+            status_code=400,
             content={"detail": f"Error processing request: {str(e)}"}
         )
 
-  
+
 class QualificationRequest(BaseModel):
     user_email: str
     domain: str
@@ -248,34 +248,34 @@ async def mark_qualification(request: QualificationRequest, authorization: str =
                 status_code=400,
                 content={"detail": "Invalid status. Must be 'qualified', 'unqualified', or 'pending'."}
             )
-        
+
         admin_result = await verify_admin(authorization, request.domain)
         if isinstance(admin_result, JSONResponse):
             return admin_result
-        
+
         mapped_domain = DOMAIN_MAPPING.get(request.domain)
         if not mapped_domain:
             return JSONResponse(
                 status_code=400,
                 content={"detail": "Invalid domain specified"}
             )
-            
+
         domain_table = resources['domain_tables'].get(mapped_domain)
         if not domain_table:
             return JSONResponse(
                 status_code=500,
                 content={"detail": "Domain table not configured"}
             )
-            
+
         user_response = domain_table.get_item(Key={'email': request.user_email})
         user = user_response.get('Item')
-        
+
         if not user:
             return JSONResponse(
                 status_code=404,
                 content={"detail": "User not found"}
             )
-            
+
         if request.round > 1:
             prev_status = user.get(f'qualification_status{request.round-1}')
             if prev_status and prev_status.lower() != "qualified":
@@ -283,22 +283,26 @@ async def mark_qualification(request: QualificationRequest, authorization: str =
                     status_code=409,
                     content={"detail": f"User {request.user_email} did not qualify in round {request.round-1}"}
                 )
-        
-        user.setdefault(f'qualification_status{request.round}', {})[f'{request.domain}'] = request.status
+
+        user[f'qualification_status{request.round}'] = request.status
         domain_table.put_item(Item=user)
-        
-        
+        user_table=resources['user_table']
+        response = user_table.get_item(Key={"uid": request.user_email})
+        user_info = response.get("Item")
+        user_info.setdefault(f'status{request.round}', {})[f'{request.domain}'] = request.status
+        user_table.put_item(Item=user_info)
+
         return JSONResponse(
             status_code=200,
             content={"detail": f"User {request.user_email} marked as {request.status} for round {request.round}"}
         )
-        
+
     except Exception as e:
         return JSONResponse(
             status_code=400,
             content={"detail": f"Error processing request: {str(e)}"}
         )
-    
+
 # delete later
 
 round_table = resources["user_table"]
