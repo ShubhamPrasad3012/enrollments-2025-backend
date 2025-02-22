@@ -117,6 +117,7 @@ SUBDOMAIN_MAPPING = {
     "AI/ML": "Technical",
     "RND": "Technical",
     "IOT": "Technical",
+    "CC": "Technical",
     "PNM": "Management",
     "EVENTS": "Management",
     "UI/UX": "Design",
