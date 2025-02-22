@@ -163,7 +163,12 @@ class AddRequest(BaseModel):
     question_data: QuestionData
 
 async def upload_to_s3(file: UploadFile, bucket_name: str) -> str:
-    s3_client = boto3.client('s3')
+    s3_client = boto3.client(
+        's3',
+        aws_access_key_id=os.getenv("MY_AWS_ACCESS_KEY"),
+        aws_secret_access_key=os.getenv("MY_AWS_SECRET_KEY"),
+        region_name=os.getenv("MY_AWS_REGION")
+    )
     
     file_extension = file.filename.split('.')[-1]
     unique_filename = f"{uuid.uuid4()}-{datetime.now().strftime('%Y%m%d-%H%M%S')}.{file_extension}"
@@ -194,20 +199,26 @@ async def add_question(
         admin_result = await verify_admin(authorization, domain)
         if isinstance(admin_result, JSONResponse):
             return admin_result
+            
         quiz_table = resources['quiz_table']
         
         question_data_dict = {"question": question}
         
         if options:  
-            options=options[0]
-            options=json.loads(options)
+            options = options[0]
+            options = json.loads(options)
             question_data_dict["options"] = options
             
         if correctIndex:
             question_data_dict["correctIndex"] = int(correctIndex)
+            
         if image:
-            image_url = await upload_to_s3(image, bucket_name=S3_BUCKET_NAME)
-            question_data_dict["image_url"] = image_url
+            try:
+                image_url = await upload_to_s3(image, bucket_name=S3_BUCKET_NAME)
+                question_data_dict["image_url"] = image_url
+            except Exception as e:
+                print(f"S3 upload error: {str(e)}")
+                raise Exception(f"Failed to upload image: {str(e)}")
 
         response = quiz_table.get_item(Key={'qid': domain})
         field = response.get('Item')
@@ -227,11 +238,12 @@ async def add_question(
         )
 
     except Exception as e:
+        # Enhanced error logging
+        print(f"Error in add_question: {str(e)}")
         return JSONResponse(
             status_code=400, 
             content={"detail": f"Error processing request: {str(e)}"}
         )
-
   
 class QualificationRequest(BaseModel):
     user_email: str
