@@ -60,10 +60,10 @@ async def get_profile(authorization: str = Depends(get_access_token), resources:
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         return {
-            "email": email, 
-            "username": user.get("username"), 
-            "mobile": user.get("mobile"), 
-            "name": user.get("name"), 
+            "email": email,
+            "username": user.get("username"),
+            "mobile": user.get("mobile"),
+            "name": user.get("name"),
             "domain": user.get("domain")
         }
 
@@ -110,11 +110,12 @@ async def submit_username(
         raise e
     except Exception as e:
         return JSONResponse(status_code=500, content= f"Internal Server Error: {str(e)}")
-  
+
 SUBDOMAIN_MAPPING = {
     "WEB": "Technical",
     "APP": "Technical",
     "AI/ML": "Technical",
+    "RND": "Technical",
     "IOT": "Technical",
     "PNM": "Management",
     "EVENTS": "Management",
@@ -159,7 +160,7 @@ async def get_dashboard(
             for sub in subdomains:
                 category = SUBDOMAIN_MAPPING.get(sub.upper(), "Other")
                 formatted_entry = f"{category}:{sub.upper()}"
-                
+
                 if sub.upper() in completed_subdomains:
                     completed_list.append(formatted_entry)
                 else:
@@ -169,6 +170,6 @@ async def get_dashboard(
             "pending": pending_list,
             "completed": completed_list
         })
-    
+
     except Exception as unexpected_error:
         raise HTTPException(status_code=500, detail=f"Unexpected server error: {str(unexpected_error)}")
