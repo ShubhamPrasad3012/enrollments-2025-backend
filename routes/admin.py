@@ -30,7 +30,8 @@ DOMAIN_MAPPING = {
     'IOT': 'iot',
     'APP': 'app',
     'AI/ML': 'ai',
-    'RND': 'rnd'
+    'RND': 'rnd',
+    'CC': 'cc'
 }
 
 async def verify_admin(authorization: str, required_domain: str):
@@ -42,7 +43,7 @@ async def verify_admin(authorization: str, required_domain: str):
                 status_code=401,
                 content={"detail": "Authentication failed: No email in token"}
             )
-        
+
         admin_response = admin_table.get_item(Key={'email': email})
 
         admin = admin_response.get('Item')
