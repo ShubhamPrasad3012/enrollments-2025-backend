@@ -12,7 +12,7 @@ ans_app = FastAPI()
 
 resources = initialize()
 user_table = resources['user_table']
-firebase_app = resources['firebase_app']  
+firebase_app = resources['firebase_app']
 
 
 class AnswerStruct(BaseModel):
@@ -26,13 +26,14 @@ domain_mapping = {
     "UI/UX": "ui",
     "GRAPHIC DESIGN": "graphic",
     "VIDEO EDITING": "video",
-    'EVENTS':'events', 
+    'EVENTS':'events',
     'PNM':'pnm',
-    'WEB':'web', 
-    'IOT':'iot', 
+    'WEB':'web',
+    'IOT':'iot',
     'APP':'app',
     'AI/ML':'ai',
-    'RND':'rnd'
+    'RND':'rnd',
+    "CC": "cc"
 }
 
 @ans_app.post("/submit")
@@ -49,7 +50,7 @@ async def post_answers(answerReq: AnswerStruct, idToken: str = Depends(get_acces
 
         if not user:
             return JSONResponse(status_code=404, content="User not found.")
-        
+
         flat_domains = list(chain.from_iterable(user.get("domain", []).values()))
         if answerReq.domain not in flat_domains:
             return JSONResponse(status_code=408, content="Domain was not selected")
@@ -71,7 +72,7 @@ async def post_answers(answerReq: AnswerStruct, idToken: str = Depends(get_acces
         if answerReq.round == 1:
             if 'Item' in response:
                 return JSONResponse(status_code=409, content="Answers already submitted")
-            
+
             domain_table.put_item(
                 Item={
                     "email": email,
@@ -107,8 +108,8 @@ async def post_answers(answerReq: AnswerStruct, idToken: str = Depends(get_acces
                 Key={'uid': email},
                 UpdateExpression=f"SET round{answerReq.round} = list_append(if_not_exists(round{answerReq.round}, :empty_list), :new_value)",
                 ExpressionAttributeValues={
-                ':new_value': [answerReq.domain], 
-                ':empty_list': []           
+                ':new_value': [answerReq.domain],
+                ':empty_list': []
                 },
             )
         return {"message": f"Answers for domain '{answerReq.domain}' submitted successfully for round {answerReq.round}."}

@@ -18,25 +18,26 @@ async def post_domain(domain: Dict[str, List[str]], id_token: str = Depends(get_
     try:
         decoded_token = auth.verify_id_token(id_token, app=resources['firebase_app'])
         email = decoded_token.get('email')
-        
+
         response = user_table.get_item(Key={'uid': email})
         user = response.get('Item')
-        
+
         if not user:
             raise HTTPException(status_code=404, content="User not found")
-        
+
         if not domain:
             raise HTTPException(status_code=400, content="Domain list cannot be empty")
-        
+
         for key, domain_list in domain.items():
-            if len(domain_list) > 2:
-                raise HTTPException(status_code=400, content=f"Domain array for key {key} cannot have more than 2 entries")
+            limit = 3 if "CC" in domain_list else 2
+            if len(domain_list) > limit:
+                raise HTTPException(status_code=400, detail=f"Domain array for key {key} cannot have more than {limit} entries")
 
         user['domain'] = domain
         user_table.put_item(Item=user)
-        
+
         return JSONResponse(status_code=200, content=domain)
-    
+
     except Exception as e:
         raise HTTPException(status_code=400, content=f"Error: {str(e)}")
 
@@ -69,6 +70,6 @@ async def get_qs(domain: str, round: str, id_token: str = Depends(get_access_tok
         response_obj = Response(content=json.dumps({"questions": formatted_questions}), media_type="application/json")
 
         return response_obj
-    
+
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error: {str(e)}")
