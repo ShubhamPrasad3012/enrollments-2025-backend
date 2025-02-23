@@ -42,10 +42,11 @@ async def post_domain(domain: Dict[str, List[str]], id_token: str = Depends(get_
         raise HTTPException(status_code=400, content=f"Error: {str(e)}")
 
 @domain_app.get('/questions')
-async def get_qs(domain: str, round: str, id_token: str = Depends(get_access_token)):
+async def get_qs(domain: str, round: str):
+# async def get_qs(domain: str, round: str, id_token: str = Depends(get_access_token)):
     try:
-        decoded_token = auth.verify_id_token(id_token, app=resources['firebase_app'])
-        email = decoded_token.get('email')
+        # decoded_token = auth.verify_id_token(id_token, app=resources['firebase_app'])
+        # email = decoded_token.get('email')
         response = quiz_table.get_item(Key={'qid': domain})
         field = response.get('Item')
 
@@ -57,19 +58,18 @@ async def get_qs(domain: str, round: str, id_token: str = Depends(get_access_tok
             return JSONResponse(status_code=401, content=f"Round {round} Questions not found")
 
         sampled_questions = random.sample(round_data, min(10, len(round_data)))
+
         formatted_questions = [
             {
                 "question": q["question"],
                 **({"options": q["options"]} if "options" in q else {}),
-                **({"correctIndex": q["correctIndex"] + 5 * 6 + 7} if "correctIndex" in q else {}),
+                **({"correctIndex": int(q["correctIndex"]) + 5 * 6 + 7} if "correctIndex" in q else {}),
                 **({"image_url": str(q["image_url"])} if "image_url" in q else {})
             }
             for q in sampled_questions
         ]
 
-        response_obj = Response(content=json.dumps({"questions": formatted_questions}), media_type="application/json")
-
-        return response_obj
+        return JSONResponse(content={"questions": formatted_questions})
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error: {str(e)}")

@@ -11,7 +11,8 @@ from fastapi.responses import FileResponse
 import os
 
 origins = [
-    "*"
+    "https://enrollments.ieeecsvit.com",
+    "http://localhost:5173"
 ]
 
 app = FastAPI()
