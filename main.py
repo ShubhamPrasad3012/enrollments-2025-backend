@@ -12,7 +12,8 @@ import os
 
 origins = [
     "https://enrollments.ieeecsvit.com",
-    "http://localhost:5173"
+    "http://localhost:5173",
+    "https://admin-portal-three-peach.vercel.app"
 ]
 
 app = FastAPI()
