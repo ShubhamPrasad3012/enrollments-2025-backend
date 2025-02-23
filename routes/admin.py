@@ -164,7 +164,12 @@ class AddRequest(BaseModel):
     question_data: QuestionData
 
 async def upload_to_s3(file: UploadFile, bucket_name: str) -> str:
-    s3_client = boto3.client('s3')
+    s3_client = boto3.client(
+        's3',
+        aws_access_key_id=os.getenv("MY_AWS_ACCESS_KEY"),
+        aws_secret_access_key=os.getenv("MY_AWS_SECRET_KEY"),
+        region_name=os.getenv("MY_AWS_REGION")
+    )
 
     file_extension = file.filename.split('.')[-1]
     unique_filename = f"{uuid.uuid4()}-{datetime.now().strftime('%Y%m%d-%H%M%S')}.{file_extension}"
