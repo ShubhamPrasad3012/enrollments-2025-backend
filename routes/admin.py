@@ -308,6 +308,39 @@ async def mark_qualification(request: QualificationRequest, authorization: str =
             status_code=400,
             content={"detail": f"Error processing request: {str(e)}"}
         )
+    
+@admin_app.get('/questions')
+async def get_qs(domain: str, round: str, authorization: str = Depends(get_access_token)):
+    try:
+        quiz_table=resources['quiz_table']
+        admin_result = await verify_admin(authorization, domain)
+        if isinstance(admin_result, JSONResponse):
+            return admin_result
+        response = quiz_table.get_item(Key={'qid': domain})
+        field = response.get('Item')
+
+        if not field:
+            return JSONResponse(status_code=404, content="Invalid domain")
+
+        round_data = field.get(round)
+        if not round_data:
+            return JSONResponse(status_code=401, content=f"Round {round} Questions not found")
+
+        formatted_questions = [
+            {
+                "question": q["question"],
+                **({"options": q["options"]} if "options" in q else {}),
+                **({"correctIndex": int(q["correctIndex"]) + 5 * 6 + 7} if "correctIndex" in q else {}),
+                **({"image_url": str(q["image_url"])} if "image_url" in q else {})
+            }
+            for q in round_data
+        ]
+
+        return JSONResponse(content={"questions": formatted_questions})
+
+    except Exception as e:
+        raise JSONResponse(status_code=400, content=f"Error: {str(e)}")
+
 
 # delete later
 
