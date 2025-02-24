@@ -4,7 +4,9 @@ from typing import List, Dict
 from middleware.verifyToken import get_access_token
 from config import initialize
 from fastapi.responses import JSONResponse
-import json
+from cryptography.fernet import Fernet
+import base64
+import os
 import random
 
 domain_app = FastAPI()
@@ -41,6 +43,7 @@ async def post_domain(domain: Dict[str, List[str]], id_token: str = Depends(get_
     except Exception as e:
         raise HTTPException(status_code=400, content=f"Error: {str(e)}")
 
+
 @domain_app.get('/questions')
 async def get_qs(domain: str, round: str, id_token: str = Depends(get_access_token)):
     try:
@@ -56,17 +59,29 @@ async def get_qs(domain: str, round: str, id_token: str = Depends(get_access_tok
         if not round_data:
             return JSONResponse(status_code=401, content=f"Round {round} Questions not found")
 
+        encryption_key = os.environ.get('MY_ENCRYPTION_KEY')
+        encryption_key = encryption_key.encode()
+        cipher_suite = Fernet(encryption_key)
         sampled_questions = random.sample(round_data, min(10, len(round_data)))
 
-        formatted_questions = [
-            {
-                "question": q["question"],
-                **({"options": q["options"]} if "options" in q else {}),
-                **({"correctIndex": int(q["correctIndex"]) + 5 * 6 + 7} if "correctIndex" in q else {}),
-                **({"image_url": str(q["image_url"])} if "image_url" in q else {})
+        formatted_questions = []
+        for q in sampled_questions:
+            question_data = {
+                "question": q["question"]
             }
-            for q in sampled_questions
-        ]
+            
+            if "options" in q:
+                question_data["options"] = q["options"]
+                
+            if "correctIndex" in q:
+                correct_index_str = str(q["correctIndex"])
+                encrypted_index = cipher_suite.encrypt(correct_index_str.encode())
+                question_data["correctIndex"] = base64.b64encode(encrypted_index).decode('utf-8')
+                
+            if "image_url" in q:
+                question_data["image_url"] = str(q["image_url"])
+                
+            formatted_questions.append(question_data)
 
         return JSONResponse(content={"questions": formatted_questions})
 
