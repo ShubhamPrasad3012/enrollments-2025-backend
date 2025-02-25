@@ -13,6 +13,7 @@ import os
 origins = [
     "https://enrollments.ieeecsvit.com",
     "http://localhost:5173",
+    "http://localhost:3000",
     "https://admin-portal-three-peach.vercel.app"
 ]
 
