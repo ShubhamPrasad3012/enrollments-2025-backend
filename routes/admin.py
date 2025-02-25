@@ -344,33 +344,33 @@ async def get_qs(domain: str, round: str, authorization: str = Depends(get_acces
 
 # delete later
 
-round_table = resources["user_table"]
+# round_table = resources["user_table"]
 
-def delete_email_entries(table_name: str, email: str):
-    table = resources["domain_tables"].get(table_name)
-    if not table:
-        return f"Table {table_name} not found."
+# def delete_email_entries(table_name: str, email: str):
+#     table = resources["domain_tables"].get(table_name)
+#     if not table:
+#         return f"Table {table_name} not found."
 
-    response = table.get_item(Key={"email": email})
-    if "Item" in response:
-        table.delete_item(Key={"email": email})
-        return f"Deleted {email} from {table_name}"
-    return f"Email {email} not found in {table_name}"
+#     response = table.get_item(Key={"email": email})
+#     if "Item" in response:
+#         table.delete_item(Key={"email": email})
+#         return f"Deleted {email} from {table_name}"
+#     return f"Email {email} not found in {table_name}"
 
-def remove_round1_attribute(email: str):
-    response = round_table.get_item(Key={"uid": email})
-    if "Item" in response:
-        round_table.update_item(
-            Key={"uid": email},
-            UpdateExpression="REMOVE round1"
-        )
-        return f"Removed 'round1' from {email}"
-    return f"Uid {email} not found in round table"
+# def remove_round1_attribute(email: str):
+#     response = round_table.get_item(Key={"uid": email})
+#     if "Item" in response:
+#         round_table.update_item(
+#             Key={"uid": email},
+#             UpdateExpression="REMOVE round1"
+#         )
+#         return f"Removed 'round1' from {email}"
+#     return f"Uid {email} not found in round table"
 
-@admin_app.post("/delete-responses")
-def delete_email(email: str):
-    results = [delete_email_entries(table, email) for table in resources["domain_tables"].keys()]
-    round1_result = remove_round1_attribute(email)
-    results.append(round1_result)
+# @admin_app.post("/delete-responses")
+# def delete_email(email: str):
+#     results = [delete_email_entries(table, email) for table in resources["domain_tables"].keys()]
+#     round1_result = remove_round1_attribute(email)
+#     results.append(round1_result)
 
-    return {"message": "✅ Email deletions and updates completed.", "details": results}
+#     return {"message": "✅ Email deletions and updates completed.", "details": results}
