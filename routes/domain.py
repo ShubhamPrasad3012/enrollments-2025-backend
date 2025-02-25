@@ -59,9 +59,8 @@ async def get_qs(domain: str, round: str, id_token: str = Depends(get_access_tok
         if not round_data:
             return JSONResponse(status_code=401, content=f"Round {round} Questions not found")
 
-        encryption_key = os.environ.get('MY_ENCRYPTION_KEY')
-        encryption_key = encryption_key.encode()
-        cipher_suite = Fernet(encryption_key)
+        secret_key = os.environ.get('MY_SECRET_KEY')
+        
         sampled_questions = random.sample(round_data, min(10, len(round_data)))
 
         formatted_questions = []
@@ -75,8 +74,12 @@ async def get_qs(domain: str, round: str, id_token: str = Depends(get_access_tok
                 
             if "correctIndex" in q:
                 correct_index_str = str(q["correctIndex"])
-                encrypted_index = cipher_suite.encrypt(correct_index_str.encode())
-                question_data["correctIndex"] = base64.b64encode(encrypted_index).decode('utf-8')
+                import hashlib
+                question_salt = hashlib.md5(q["question"].encode()).hexdigest()[:10]
+                data_to_hash = f"{secret_key}{correct_index_str}{question_salt}"
+                hashed_index = hashlib.sha256(data_to_hash.encode()).hexdigest()
+                question_data["correctIndexHash"] = hashed_index
+                question_data["salt"] = question_salt
                 
             if "image_url" in q:
                 question_data["image_url"] = str(q["image_url"])
