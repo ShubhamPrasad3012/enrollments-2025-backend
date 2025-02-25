@@ -330,7 +330,7 @@ async def get_qs(domain: str, round: str, authorization: str = Depends(get_acces
             {
                 "question": q["question"],
                 **({"options": q["options"]} if "options" in q else {}),
-                **({"correctIndex": int(q["correctIndex"]) + 5 * 6 + 7} if "correctIndex" in q else {}),
+                **({"correctIndex": int(q["correctIndex"])} if "correctIndex" in q else {}),
                 **({"image_url": str(q["image_url"])} if "image_url" in q else {})
             }
             for q in round_data
