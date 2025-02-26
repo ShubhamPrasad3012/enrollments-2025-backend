@@ -201,35 +201,35 @@ async def add_question(
         if isinstance(admin_result, JSONResponse):
             return admin_result
         quiz_table = resources['quiz_table']
-
         question_data_dict = {"question": question}
 
         if options:
-            options=options[0]
-            options=json.loads(options)
+            options = json.loads(options[0])
             question_data_dict["options"] = options
+            if correctIndex:
+                question_data_dict["correctIndex"] = int(correctIndex)
 
-        if correctIndex:
-            question_data_dict["correctIndex"] = int(correctIndex)
         if image:
             image_url = await upload_to_s3(image, bucket_name=S3_BUCKET_NAME)
             question_data_dict["image_url"] = image_url
 
+        print(question_data_dict)
         response = quiz_table.get_item(Key={'qid': domain})
-        field = response.get('Item')
+        field = response.get('Item') or {}  # Ensure field is a dictionary, not None
 
-        if not field:
-            field = {'qid': domain, str(round): [question_data_dict]}
-        else:
-            if round not in field or field[round] is None:
-                field[round] = []
-            field[round].append(question_data_dict)
+        question_key = f"mcq{round}" if options else f"desc{round}"
+
+        if question_key not in field:
+            field[question_key] = []
+
+        field[question_key].append(question_data_dict)
+        field['qid'] = domain  # Ensure qid is always present
 
         quiz_table.put_item(Item=field)
 
         return JSONResponse(
             status_code=200,
-            content={"detail": "Question added successfully", "total_questions": len(field[round])}
+            content={"detail": "Question added successfully", "total_questions": len(field[question_key])}
         )
 
     except Exception as e:
@@ -312,34 +312,49 @@ async def mark_qualification(request: QualificationRequest, authorization: str =
 @admin_app.get('/questions')
 async def get_qs(domain: str, round: str, authorization: str = Depends(get_access_token)):
     try:
-        quiz_table=resources['quiz_table']
+        quiz_table = resources['quiz_table']
         admin_result = await verify_admin(authorization, domain)
         if isinstance(admin_result, JSONResponse):
             return admin_result
+
         response = quiz_table.get_item(Key={'qid': domain})
         field = response.get('Item')
 
         if not field:
-            return JSONResponse(status_code=404, content="Invalid domain")
+            return JSONResponse(status_code=404, content={"detail": "Invalid domain"})
 
-        round_data = field.get(round)
-        if not round_data:
-            return JSONResponse(status_code=401, content=f"Round {round} Questions not found")
+        mcq_key = f"mcq{round}"
+        desc_key = f"desc{round}"
 
-        formatted_questions = [
+        mcq_questions = field.get(mcq_key, [])
+        desc_questions = field.get(desc_key, [])
+
+        if not mcq_questions and not desc_questions:
+            return JSONResponse(status_code=401, content={"detail": f"Round {round} Questions not found"})
+
+        formatted_mcq = [
             {
                 "question": q["question"],
-                **({"options": q["options"]} if "options" in q else {}),
-                **({"correctIndex": int(q["correctIndex"])} if "correctIndex" in q else {}),
+                "options": q["options"],
+                "correctIndex": int(q["correctIndex"]),
                 **({"image_url": str(q["image_url"])} if "image_url" in q else {})
             }
-            for q in round_data
+            for q in mcq_questions
         ]
 
-        return JSONResponse(content={"questions": formatted_questions})
+        formatted_desc = [
+            {
+                "question": q["question"],
+                **({"image_url": str(q["image_url"])} if "image_url" in q else {})
+            }
+            for q in desc_questions
+        ]
+
+        return JSONResponse(content={"mcq_questions": formatted_mcq, "desc_questions": formatted_desc})
+
 
     except Exception as e:
-        raise JSONResponse(status_code=400, content=f"Error: {str(e)}")
+        return JSONResponse(status_code=400, content={"detail": f"Error: {str(e)}"})
 
 
 # delete later
