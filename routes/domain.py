@@ -55,23 +55,32 @@ async def get_qs(domain: str, round: str, id_token: str = Depends(get_access_tok
         if not field:
             return JSONResponse(status_code=404, content="Invalid domain")
 
-        round_data = field.get(round)
-        if not round_data:
-            return JSONResponse(status_code=401, content=f"Round {round} Questions not found")
+        mcq_data = field.get(f"mcq{round}", [])
+        desc_data = field.get(f"desc{round}", [])
+
+        if not mcq_data:
+            return JSONResponse(status_code=401, content=f"Round {round} MCQ Questions not found")
 
         secret_key = os.environ.get('MY_SECRET_KEY')
-        
-        sampled_questions = random.sample(round_data, min(10, len(round_data)))
+        if not secret_key:
+            raise HTTPException(status_code=500, detail="Secret key not found in environment variables")
+
+        selected_mcq = random.sample(mcq_data, min(7, len(mcq_data)))
+
+        selected_desc = desc_data[:3] if len(desc_data) >= 3 else desc_data
+        remaining_mcq_needed = 3 - len(selected_desc)
+
+        if remaining_mcq_needed > 0:
+            extra_mcqs = [q for q in mcq_data if q not in selected_mcq]
+            selected_mcq += random.sample(extra_mcqs, min(remaining_mcq_needed, len(extra_mcqs)))
 
         formatted_questions = []
-        for q in sampled_questions:
-            question_data = {
-                "question": q["question"]
-            }
-            
+        for q in selected_mcq + selected_desc:
+            question_data = {"question": q["question"]}
+
             if "options" in q:
                 question_data["options"] = q["options"]
-                
+
             if "correctIndex" in q:
                 correct_index_str = str(q["correctIndex"])
                 import hashlib
@@ -80,10 +89,10 @@ async def get_qs(domain: str, round: str, id_token: str = Depends(get_access_tok
                 hashed_index = hashlib.sha256(data_to_hash.encode()).hexdigest()
                 question_data["correctIndexHash"] = hashed_index
                 question_data["salt"] = question_salt
-                
+
             if "image_url" in q:
                 question_data["image_url"] = str(q["image_url"])
-                
+
             formatted_questions.append(question_data)
 
         return JSONResponse(content={"questions": formatted_questions})
