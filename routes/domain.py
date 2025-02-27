@@ -59,7 +59,7 @@ async def get_qs(domain: str, round: str, id_token: str = Depends(get_access_tok
         desc_data = field.get(f"desc{round}", [])
 
         if not mcq_data:
-            return JSONResponse(status_code=401, content=f"Round {round} MCQ Questions not found")
+            return JSONResponse(status_code=204, content=f"Round {round} MCQ Questions not found")
 
         secret_key = os.environ.get('MY_SECRET_KEY')
         if not secret_key:

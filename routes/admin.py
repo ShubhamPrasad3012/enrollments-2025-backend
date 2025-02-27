@@ -330,7 +330,7 @@ async def get_qs(domain: str, round: str, authorization: str = Depends(get_acces
         desc_questions = field.get(desc_key, [])
 
         if not mcq_questions and not desc_questions:
-            return JSONResponse(status_code=401, content={"detail": f"Round {round} Questions not found"})
+            return JSONResponse(status_code=204, content={"detail": f"Round {round} Questions not found"})
 
         formatted_mcq = [
             {
