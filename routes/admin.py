@@ -78,7 +78,6 @@ async def fetch_domains(
     authorization: str = Depends(get_access_token)
 ):
     try:
-        print(domain, round, status, last_evaluated_key)
         admin_result = await verify_admin(authorization, domain)
         if isinstance(admin_result, JSONResponse):
             return admin_result
@@ -125,24 +124,22 @@ async def fetch_domains(
 
         collected_items = []
 
-        while len(collected_items) < 10:
-            scan_params['Limit'] = 10 - len(collected_items)
+        while True:
             response = domain_table.scan(**scan_params)
-
             items = response.get('Items', [])
             collected_items.extend(items)
 
-            last_key = response.get('LastEvaluatedKey', {}).get('email')
+            last_key = response.get('LastEvaluatedKey')
 
-            if not last_key or len(collected_items) >= 10:
-                break
+            if not last_key:
+                break 
 
-            scan_params['ExclusiveStartKey'] = {'email': last_key}
+            scan_params['ExclusiveStartKey'] = last_key
+
         results = {
-            'items': collected_items[:10],
-            'last_evaluated_key': last_key
+            'items': collected_items,
+            'last_evaluated_key': None 
         }
-        print(last_key)
 
         return {"status_code": 200, "content": results}
 
@@ -151,7 +148,7 @@ async def fetch_domains(
             status_code=400,
             content={"detail": f"Error processing request: {str(e)}"}
         )
-
+    
 class QuestionData(BaseModel):
     question: str
     options: list
