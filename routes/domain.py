@@ -15,33 +15,36 @@ resources = initialize()
 user_table = resources['user_table']
 quiz_table = resources['quiz_table']
 
-# @domain_app.post('/submit')
-# async def post_domain(domain: Dict[str, List[str]], id_token: str = Depends(get_access_token)):
-#     try:
-#         decoded_token = auth.verify_id_token(id_token, app=resources['firebase_app'])
-#         email = decoded_token.get('email')
+@domain_app.post('/submit')
+async def post_domain(domain: Dict[str, List[str]], id_token: str = Depends(get_access_token)):
+    try:
+        decoded_token = auth.verify_id_token(id_token, app=resources['firebase_app'])
+        email = decoded_token.get('email')
 
-#         response = user_table.get_item(Key={'uid': email})
-#         user = response.get('Item')
+        response = user_table.get_item(Key={'uid': email})
+        user = response.get('Item')
 
-#         if not user:
-#             raise HTTPException(status_code=404, content="User not found")
+        if not user:
+            raise HTTPException(status_code=404, content="User not found")
 
-#         if not domain:
-#             raise HTTPException(status_code=400, content="Domain list cannot be empty")
+        if "round1" in user:
+            return JSONResponse(status_code=403, content="Quiz Started")
 
-#         for key, domain_list in domain.items():
-#             limit = 3 if "CC" in domain_list else 2
-#             if len(domain_list) > limit:
-#                 raise HTTPException(status_code=400, detail=f"Domain array for key {key} cannot have more than {limit} entries")
+        if not domain:
+            raise HTTPException(status_code=400, content="Domain list cannot be empty")
 
-#         user['domain'] = domain
-#         user_table.put_item(Item=user)
+        for key, domain_list in domain.items():
+            limit = 3 if "CC" in domain_list else 2
+            if len(domain_list) > limit:
+                raise HTTPException(status_code=400, detail=f"Domain array for key {key} cannot have more than {limit} entries")
 
-#         return JSONResponse(status_code=200, content=domain)
+        user['domain'] = domain
+        user_table.put_item(Item=user)
 
-#     except Exception as e:
-#         raise HTTPException(status_code=400, content=f"Error: {str(e)}")
+        return JSONResponse(status_code=200, content=domain)
+
+    except Exception as e:
+        raise HTTPException(status_code=400, content=f"Error: {str(e)}")
 
 
 @domain_app.get('/questions')
