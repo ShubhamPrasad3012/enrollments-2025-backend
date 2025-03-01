@@ -62,7 +62,7 @@ async def verify_admin(authorization: str, required_domain: str):
                     content={"detail": "Access denied: No permission for this domain"}
                 )
 
-        return admin
+        return email
     except Exception as e:
         return JSONResponse(
             status_code=401,
@@ -252,9 +252,9 @@ async def mark_qualification(request: QualificationRequest, authorization: str =
                 content={"detail": "Invalid status. Must be 'qualified', 'unqualified', or 'pending'."}
             )
 
-        admin_result = await verify_admin(authorization, request.domain)
-        if isinstance(admin_result, JSONResponse):
-            return admin_result
+        email = await verify_admin(authorization, request.domain)
+        if isinstance(email, JSONResponse):
+            return email
 
         mapped_domain = DOMAIN_MAPPING.get(request.domain)
         if not mapped_domain:
@@ -288,6 +288,7 @@ async def mark_qualification(request: QualificationRequest, authorization: str =
                 )
 
         user[f'qualification_status{request.round}'] = request.status
+        user[f'updated_by']=email
         domain_table.put_item(Item=user)
         user_table=resources['user_table']
         response = user_table.get_item(Key={"uid": request.user_email})
