@@ -139,7 +139,7 @@ async def get_dashboard(
         except Exception as token_error:
             raise HTTPException(status_code=401, detail=f"Invalid token: {str(token_error)}")
 
-        email = decoded_token.get("email")
+        email = decoded_token.get('email')
         if not email:
             raise HTTPException(status_code=400, detail="Email not found in ID token")
 
@@ -151,18 +151,33 @@ async def get_dashboard(
         except Exception as db_error:
             raise HTTPException(status_code=500, detail=f"Database lookup failed: {str(db_error)}")
 
-        domain_data = user.get("domain", {})  # Dictionary of domains and their subdomains
-        completed_subdomains = set(user.get(f"round{round}", []))  # Subdomains completed in the round
+        if round==1:
+            domain_data = user.get("domain", {})  # Dictionary of domains and their subdomains
+            completed_subdomains = set(user.get(f"round{round}", []))  # Subdomains completed in the round
 
-        pending_list = []
-        completed_list = []
+            pending_list = []
+            completed_list = []
 
-        for domain, subdomains in domain_data.items():
-            for sub in subdomains:
+            for domain, subdomains in domain_data.items():
+                for sub in subdomains:
+                    category = SUBDOMAIN_MAPPING.get(sub.upper(), "Other")
+                    formatted_entry = f"{category}:{sub.upper()}"
+
+                    if sub.upper() in completed_subdomains:
+                        completed_list.append(formatted_entry)
+                    else:
+                        pending_list.append(formatted_entry)
+
+        elif round == 2:
+            status_data = user.get("status1", {})  
+            pending_list = []
+            completed_list = []
+
+            for sub, status in status_data.items():
                 category = SUBDOMAIN_MAPPING.get(sub.upper(), "Other")
                 formatted_entry = f"{category}:{sub.upper()}"
 
-                if sub.upper() in completed_subdomains:
+                if status.lower() == "qualified":
                     completed_list.append(formatted_entry)
                 else:
                     pending_list.append(formatted_entry)
@@ -171,6 +186,6 @@ async def get_dashboard(
             "pending": pending_list,
             "completed": completed_list
         })
-
+                
     except Exception as unexpected_error:
         raise HTTPException(status_code=500, detail=f"Unexpected server error: {str(unexpected_error)}")
