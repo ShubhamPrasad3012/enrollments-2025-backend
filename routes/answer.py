@@ -17,9 +17,7 @@ firebase_app = resources['firebase_app']
 
 class AnswerStruct(BaseModel):
     domain: str = Field(...)
-    questions: List[str] = Field(...)
-    answers: List[Union[str, List[str]]] = Field(...)
-    score: Optional[int] = Field(None)
+    answers: List[str] = Field(...)
     round: int
 
 domain_mapping = {
@@ -38,9 +36,11 @@ domain_mapping = {
 
 @ans_app.post("/submit")
 async def post_answers(answerReq: AnswerStruct, idToken: str = Depends(get_access_token)):
+# async def post_answers(answerReq: AnswerStruct):
     try:
         decoded_token = auth.verify_id_token(idToken, app=resources["firebase_app"])
         email = decoded_token.get("email")
+        # email='aryanramesh.jain2023@vitstudent.ac.in'
 
         if not email:
             return JSONResponse(status_code=401, content="Invalid or missing email in token.")
@@ -51,9 +51,9 @@ async def post_answers(answerReq: AnswerStruct, idToken: str = Depends(get_acces
         if not user:
             return JSONResponse(status_code=404, content="User not found.")
 
-        flat_domains = list(chain.from_iterable(user.get("domain", []).values()))
-        if answerReq.domain not in flat_domains:
-            return JSONResponse(status_code=408, content="Domain was not selected")
+        # flat_domains = list(chain.from_iterable(user.get("domain", []).values()))
+        # if answerReq.domain not in flat_domains:
+        #     return JSONResponse(status_code=408, content="Domain was not selected")
         mapped_domain = domain_mapping.get(answerReq.domain)
         domain_tables = resources['domain_tables']
         domain_table = domain_tables.get(mapped_domain)
@@ -61,48 +61,46 @@ async def post_answers(answerReq: AnswerStruct, idToken: str = Depends(get_acces
         if not domain_table:
             raise HTTPException(status_code=400, detail=f"Domain '{answerReq.domain}' not recognized.")
 
-        if len(answerReq.questions) != len(answerReq.answers):
-            raise HTTPException(status_code=400, detail="Questions and answers lists must have the same length.")
+        # if len(answerReq.questions) != len(answerReq.answers):
+        #     raise HTTPException(status_code=400, detail="Questions and answers lists must have the same length.")
 
-        answers_dict = [{"question": q, "answer": a} for q, a in zip(answerReq.questions, answerReq.answers)]
+        # answers_dict = [{"question": q, "answer": a} for q, a in zip(answerReq.questions, answerReq.answers)]
         response = domain_table.get_item(Key={'email': email})
+        domain_response = response.get('Item')
+
+        # if answerReq.round == 1:
+        #     if 'Item' in response:
+        #         return JSONResponse(status_code=409, content="Answers already submitted")
+
+        #     domain_table.put_item(
+        #         Item={
+        #             "email": email,
+        #             f"round{answerReq.round}": answers_dict,
+        #             f"score{answerReq.round}": answerReq.score
+        #         }
+        #     )
+        if answerReq.round == 2:
+            if not domain_response.get("round1"):
+                return JSONResponse(status_code=201, content=f"Did not attempt round 1")
 
 
+            if domain_response.get('qualification_status1') != "qualified":
+                return JSONResponse(status_code=202, content=f"did not qualify round 1")
 
-        if answerReq.round == 1:
-            if 'Item' in response:
-                return JSONResponse(status_code=409, content="Answers already submitted")
-
-            domain_table.put_item(
-                Item={
-                    "email": email,
-                    f"round{answerReq.round}": answers_dict,
-                    f"score{answerReq.round}": answerReq.score
-                }
+            domain_table.update_item(
+                Key={"email": email},
+                UpdateExpression="SET round2 = :answers",
+                ExpressionAttributeValues={":answers": answerReq.answers}
             )
-        else:
-            result = domain_table.get_item(Key={"email": email})
-            domain_response = result.get('Item')
-            if not domain_response or not domain_response.get(f"round{answerReq.round - 1}"):
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"User '{email}' has not completed round {answerReq.round - 1} in domain '{answerReq.domain}'."
-                )
-            domain_table.update_item(Key={"email": email},
-                UpdateExpression="""
-                SET #new_answers = if_not_exists(#new_answers, :new_answers),
-                #new_score = if_not_exists(#new_score, :new_score)
-                """,
-            ExpressionAttributeNames={
-                "#new_answers": f"round{answerReq.round}",
-                "#new_score": f"score{answerReq.round}"
-            },
+
+        user_table.update_item(
+            Key={'uid': email},
+            UpdateExpression="SET round{0} = list_append(if_not_exists(round{0}, :empty_list), :new_value)".format(answerReq.round),
             ExpressionAttributeValues={
-                ":new_answers": answers_dict,
-                ":new_score": answerReq.score
-            },
-            ReturnValues="UPDATED_NEW"
-            )
+                ':new_value': [answerReq.domain],
+                ':empty_list': []
+            }
+        )
 
         user_table.update_item(
                 Key={'uid': email},
@@ -112,7 +110,7 @@ async def post_answers(answerReq: AnswerStruct, idToken: str = Depends(get_acces
                 ':empty_list': []
                 },
             )
-        return {"message": f"Answers for domain '{answerReq.domain}' submitted successfully for round {answerReq.round}."}
+        return JSONResponse(status_code=200,content=f"Answers for domain '{answerReq.domain}' submitted successfully for round {answerReq.round}.")
 
     except ClientError as e:
         raise HTTPException(status_code=500, detail=f"DynamoDB error: {str(e)}")
