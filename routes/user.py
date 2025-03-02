@@ -169,9 +169,18 @@ async def get_dashboard(
                         pending_list.append(formatted_entry)
 
         elif round == 2:
-            status_data = user.get("status1", {})  
+            if "round1" not in user:
+                return JSONResponse(status_code=201, content={"message": "Did not attempt round 1"})
+            
             pending_list = []
             completed_list = []
+            if "status1" not in user:
+                return JSONResponse(status_code=200, content={
+                    "pending": pending_list,
+                    "completed": completed_list
+                })
+
+            status_data = user.get("status1", {})  
 
             for sub, status in status_data.items():
                 category = SUBDOMAIN_MAPPING.get(sub.upper(), "Other")
