@@ -82,8 +82,8 @@ async def post_answers(answerReq: AnswerStruct, idToken: str = Depends(get_acces
         #         }
         #     )
         if answerReq.round == 2:
-            if not domain_response.get("round1"):
-                return JSONResponse(status_code=201, content=f"Did not attempt round 1")
+            # if not domain_response.get("round1"):
+            #     return JSONResponse(status_code=201, content=f"Did not attempt round 1")
 
 
             if domain_response.get('qualification_status1') != "qualified":
