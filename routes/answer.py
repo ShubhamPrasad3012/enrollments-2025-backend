@@ -26,12 +26,14 @@ domain_mapping = {
     "VIDEO EDITING": "video",
     'EVENTS':'events',
     'PNM':'pnm',
-    'WEB':'web',
+    # 'WEB':'web',
     'IOT':'iot',
     'APP':'app',
     'AI/ML':'ai',
     'RND':'rnd',
-    "CC": "cc"
+    "CC": "cc",
+    "FRONTEND":"web",
+    "BACKEND":"web",
 }
 
 @ans_app.post("/submit")
@@ -87,29 +89,31 @@ async def post_answers(answerReq: AnswerStruct, idToken: str = Depends(get_acces
             if domain_response.get('qualification_status1') != "qualified":
                 return JSONResponse(status_code=202, content=f"did not qualify round 1")
 
+            if answerReq.domain=="FRONTEND":
+                name="frontend"
+            elif answerReq.domain=="BACKEND":
+                name="backend"
+            else:
+                name="round2"
+            
             domain_table.update_item(
                 Key={"email": email},
-                UpdateExpression="SET round2 = :answers",
+                UpdateExpression=f"SET {name} = :answers",
                 ExpressionAttributeValues={":answers": answerReq.answers}
             )
 
-        user_table.update_item(
-            Key={'uid': email},
-            UpdateExpression="SET round{0} = list_append(if_not_exists(round{0}, :empty_list), :new_value)".format(answerReq.round),
-            ExpressionAttributeValues={
-                ':new_value': [answerReq.domain],
-                ':empty_list': []
-            }
-        )
+        existing_rounds = user.get(f"round{answerReq.round}", [])
 
-        user_table.update_item(
+        if answerReq.domain not in existing_rounds:
+            user_table.update_item(
                 Key={'uid': email},
                 UpdateExpression=f"SET round{answerReq.round} = list_append(if_not_exists(round{answerReq.round}, :empty_list), :new_value)",
                 ExpressionAttributeValues={
-                ':new_value': [answerReq.domain],
-                ':empty_list': []
-                },
+                    ':new_value': [answerReq.domain],
+                    ':empty_list': []
+                }
             )
+
         return JSONResponse(status_code=200,content=f"Answers for domain '{answerReq.domain}' submitted successfully for round {answerReq.round}.")
 
     except ClientError as e:
