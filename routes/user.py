@@ -140,6 +140,7 @@ async def get_dashboard(
             raise HTTPException(status_code=401, detail=f"Invalid token: {str(token_error)}")
 
         email = decoded_token.get('email')
+        # email='ansh.mehta2022@vitstudent.ac.in'
         if not email:
             raise HTTPException(status_code=400, detail="Email not found in ID token")
 
@@ -169,8 +170,8 @@ async def get_dashboard(
                         pending_list.append(formatted_entry)
 
         elif round == 2:
-            if "round1" not in user:
-                return JSONResponse(status_code=201, content={"message": "Did not attempt round 1"})
+            # if "round1" not in user:
+            #     return JSONResponse(status_code=201, content={"message": "Did not attempt round 1"})
             
             pending_list = []
             completed_list = []
