@@ -284,7 +284,7 @@ async def mark_qualification(request: QualificationRequest, authorization: str =
 
         if request.round > 1:
             prev_status = user.get(f'qualification_status{request.round-1}')
-            if prev_status and prev_status.lower() != "qualified":
+            if not prev_status or prev_status.lower() != "qualified":
                 return JSONResponse(
                     status_code=409,
                     content={"detail": f"User {request.user_email} did not qualify in round {request.round-1}"}
