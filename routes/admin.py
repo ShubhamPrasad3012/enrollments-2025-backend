@@ -36,10 +36,14 @@ DOMAIN_MAPPING = {
     'CC': 'cc'
 }
 
-async def verify_admin(authorization: str, required_domain: str):
+from fastapi import HTTPException
+from fastapi.responses import JSONResponse
+
+async def verify_admin(authorization: str, required_domain: str = None):
     try:
         decoded_token = auth.verify_id_token(authorization, app=resources['firebase_app'])
         email = decoded_token.get('email')
+
         if not email:
             return JSONResponse(
                 status_code=401,
@@ -47,7 +51,6 @@ async def verify_admin(authorization: str, required_domain: str):
             )
 
         admin_response = admin_table.get_item(Key={'email': email})
-
         admin = admin_response.get('Item')
 
         if not admin:
@@ -65,6 +68,7 @@ async def verify_admin(authorization: str, required_domain: str):
                 )
 
         return email
+
     except Exception as e:
         return JSONResponse(
             status_code=401,
@@ -393,3 +397,21 @@ def delete_email(email: str):
     results.append(round1_result)
 
     return {"message": "✅ Email deletions and updates completed.", "details": results}
+
+@admin_app.get("/search")
+async def search_user(email: str = Query(..., description="User email to search"), authorization: str = Depends(get_access_token)):
+    admin_result = await verify_admin(authorization)
+    if isinstance(admin_result, JSONResponse):
+        return admin_result
+    
+    response = round_table.get_item(Key={"uid": email})
+    user = response.get("Item")
+
+    if not user:
+        return JSONResponse(status_code=404, content="User not found")
+
+    return {
+        "email": email,
+        "status1": user.get("status1", {}),
+        "status2": user.get("status2", {})
+    }
