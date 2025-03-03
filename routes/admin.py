@@ -74,7 +74,7 @@ async def verify_admin(authorization: str, required_domain: str = None):
             status_code=401,
             content={"detail": f"Authentication failed: {str(e)}"}
         )
-
+    
 @admin_app.get('/fetch')
 async def fetch_domains(
     domain: str,
@@ -107,7 +107,7 @@ async def fetch_domains(
         qualification_attr = f'qualification_status{round}'
         previous_round_attr = f'qualification_status{round - 1}'
         
-        filter_conditions = Attr(previous_round_attr).eq("qualified")
+        filter_conditions = Attr(previous_round_attr).eq("qualified") & Attr("round2").exists()
         if status:
             if status.lower() == "unmarked":
                 filter_conditions &= (
@@ -155,7 +155,8 @@ async def fetch_domains(
         return JSONResponse(
             status_code=400,
             content={"detail": f"Error processing request: {str(e)}"}
-        )  
+        )
+
 class QuestionData(BaseModel):
     question: str
     options: list
@@ -257,6 +258,12 @@ async def mark_qualification(request: QualificationRequest, authorization: str =
             return JSONResponse(
                 status_code=400,
                 content={"detail": "Invalid status. Must be 'qualified', 'unqualified', or 'pending'."}
+            )
+        
+        if request.round==1:
+            return JSONResponse(
+                status_code=203,
+                content={"detail": "Round 1 evaluations are closed'."}
             )
 
         email = await verify_admin(authorization, request.domain)
