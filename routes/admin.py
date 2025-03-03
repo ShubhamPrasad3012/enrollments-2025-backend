@@ -10,6 +10,8 @@ import uuid
 from datetime import datetime
 import boto3
 import json
+from boto3.dynamodb.conditions import Attr
+from decimal import Decimal
 
 S3_BUCKET_NAME = os.getenv('MY_S3_BUCKET_NAME')
 if not S3_BUCKET_NAME:
@@ -81,74 +83,75 @@ async def fetch_domains(
         admin_result = await verify_admin(authorization, domain)
         if isinstance(admin_result, JSONResponse):
             return admin_result
-
         if round < 1:
             return JSONResponse(
                 status_code=400,
                 content={"detail": "Round number must be greater than 0"}
             )
-
         mapped_domain = DOMAIN_MAPPING.get(domain)
         if not mapped_domain:
             return JSONResponse(
                 status_code=400,
                 content={"detail": "Invalid domain specified"}
             )
-
         domain_table = resources['domain_tables'].get(mapped_domain)
         if not domain_table:
             return JSONResponse(
                 status_code=500,
                 content={"detail": "Domain table not configured"}
             )
-
         qualification_attr = f'qualification_status{round}'
-        filter_expression = None
-        expression_values = {}
-
-        if status.lower() == "unmarked":
-            filter_expression = f"attribute_not_exists(#{qualification_attr}) OR #{qualification_attr} = :empty"
-            expression_values = {':empty': None}
-        else:
-            filter_expression = f"#{qualification_attr} = :status"
-            expression_values = {':status': status}
-
+        previous_round_attr = f'qualification_status{round - 1}'
+        
+        filter_conditions = Attr(previous_round_attr).eq("qualified")
+        if status:
+            if status.lower() == "unmarked":
+                filter_conditions &= (
+                    ~Attr(qualification_attr).exists() | Attr(qualification_attr).eq(None)
+                )
+            else:
+                filter_conditions &= Attr(qualification_attr).eq(status)
+                
         scan_params = {
-            'FilterExpression': filter_expression,
-            'ExpressionAttributeNames': {f'#{qualification_attr}': qualification_attr},
-            'ExpressionAttributeValues': expression_values
+            'FilterExpression': filter_conditions
         }
-
+        
         if last_evaluated_key and last_evaluated_key != "start":
             scan_params['ExclusiveStartKey'] = {'email': last_evaluated_key}
-
+            
         collected_items = []
-
+        last_key = None
+        
         while True:
             response = domain_table.scan(**scan_params)
             items = response.get('Items', [])
             collected_items.extend(items)
-
             last_key = response.get('LastEvaluatedKey')
-
             if not last_key:
-                break 
-
+                break
             scan_params['ExclusiveStartKey'] = last_key
-
-        results = {
-            'items': collected_items,
-            'last_evaluated_key': None 
-        }
-
-        return {"status_code": 200, "content": results}
-
+        
+        class DecimalEncoder(json.JSONEncoder):
+            def default(self, obj):
+                if isinstance(obj, Decimal):
+                    return float(obj)
+                return super(DecimalEncoder, self).default(obj)
+        
+        json_data = json.loads(json.dumps({
+            "items": collected_items,
+            "last_evaluated_key": last_key
+        }, cls=DecimalEncoder))
+        
+        return JSONResponse(
+            status_code=200,
+            content=json_data
+        )
+        
     except Exception as e:
         return JSONResponse(
             status_code=400,
             content={"detail": f"Error processing request: {str(e)}"}
-        )
-    
+        )  
 class QuestionData(BaseModel):
     question: str
     options: list
