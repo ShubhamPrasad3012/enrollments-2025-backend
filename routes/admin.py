@@ -74,7 +74,7 @@ async def verify_admin(authorization: str, required_domain: str = None):
             status_code=401,
             content={"detail": f"Authentication failed: {str(e)}"}
         )
-    
+
 @admin_app.get('/fetch')
 async def fetch_domains(
     domain: str,
@@ -87,75 +87,75 @@ async def fetch_domains(
         admin_result = await verify_admin(authorization, domain)
         if isinstance(admin_result, JSONResponse):
             return admin_result
+        
         if round < 1:
-            return JSONResponse(
-                status_code=400,
-                content={"detail": "Round number must be greater than 0"}
-            )
+            raise HTTPException(status_code=400, detail="Round number must be greater than 0")
+        
         mapped_domain = DOMAIN_MAPPING.get(domain)
         if not mapped_domain:
-            return JSONResponse(
-                status_code=400,
-                content={"detail": "Invalid domain specified"}
-            )
+            raise HTTPException(status_code=400, detail="Invalid domain specified")
+        
         domain_table = resources['domain_tables'].get(mapped_domain)
         if not domain_table:
-            return JSONResponse(
-                status_code=500,
-                content={"detail": "Domain table not configured"}
-            )
+            raise HTTPException(status_code=500, detail="Domain table not configured")
+        
         qualification_attr = f'qualification_status{round}'
         previous_round_attr = f'qualification_status{round - 1}'
-        
-        filter_conditions = Attr(previous_round_attr).eq("qualified") & Attr("round2").exists()
-        if status:
+
+        def scan_table(filter_conditions):
+            scan_params = {'FilterExpression': filter_conditions}
+            if last_evaluated_key and last_evaluated_key != "start":
+                scan_params['ExclusiveStartKey'] = {'email': last_evaluated_key}
+                
+            collected_items = []
+            last_key = None
+            
+            while True:
+                response = domain_table.scan(**scan_params)
+                collected_items.extend(response.get('Items', []))
+                last_key = response.get('LastEvaluatedKey')
+                if not last_key:
+                    break
+                scan_params['ExclusiveStartKey'] = last_key
+            
+            return collected_items, last_key
+
+        if round == 1:
+            filter_expression = None
+            expression_values = {}
+
             if status.lower() == "unmarked":
-                filter_conditions &= (
-                    ~Attr(qualification_attr).exists() | Attr(qualification_attr).eq(None)
-                )
+                filter_expression = f"attribute_not_exists(#{qualification_attr}) OR #{qualification_attr} = :empty"
+                expression_values = {':empty': None}
+            else:
+                filter_expression = f"#{qualification_attr} = :status"
+                expression_values = {':status': status}
+
+            collected_items, last_key = scan_table(
+                Attr(qualification_attr).not_exists() | Attr(qualification_attr).eq(None) if status.lower() == "unmarked" 
+                else Attr(qualification_attr).eq(status)
+            )
+
+        elif round == 2:
+            filter_conditions = Attr(previous_round_attr).eq("qualified") & Attr("round2").exists()
+            if status.lower() == "unmarked":
+                filter_conditions &= (~Attr(qualification_attr).exists() | Attr(qualification_attr).eq(None))
             else:
                 filter_conditions &= Attr(qualification_attr).eq(status)
-                
-        scan_params = {
-            'FilterExpression': filter_conditions
-        }
-        
-        if last_evaluated_key and last_evaluated_key != "start":
-            scan_params['ExclusiveStartKey'] = {'email': last_evaluated_key}
-            
-        collected_items = []
-        last_key = None
-        
-        while True:
-            response = domain_table.scan(**scan_params)
-            items = response.get('Items', [])
-            collected_items.extend(items)
-            last_key = response.get('LastEvaluatedKey')
-            if not last_key:
-                break
-            scan_params['ExclusiveStartKey'] = last_key
-        
-        class DecimalEncoder(json.JSONEncoder):
-            def default(self, obj):
-                if isinstance(obj, Decimal):
-                    return float(obj)
-                return super(DecimalEncoder, self).default(obj)
-        
-        json_data = json.loads(json.dumps({
+
+            collected_items, last_key = scan_table(filter_conditions)
+
+        json_data = json.dumps({
             "items": collected_items,
-            "last_evaluated_key": last_key
-        }, cls=DecimalEncoder))
-        
-        return JSONResponse(
-            status_code=200,
-            content=json_data
-        )
-        
+            "last_evaluated_key": last_key or None
+        }, default=lambda x: float(x) if isinstance(x, Decimal) else x)
+
+        return JSONResponse(status_code=200, content=json_data)
+    
+    except HTTPException as e:
+        return JSONResponse(status_code=e.status_code, content={"detail": e.detail})
     except Exception as e:
-        return JSONResponse(
-            status_code=400,
-            content={"detail": f"Error processing request: {str(e)}"}
-        )
+        return JSONResponse(status_code=400, content={"detail": f"Error processing request: {str(e)}"})
 
 class QuestionData(BaseModel):
     question: str
