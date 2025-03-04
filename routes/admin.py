@@ -106,7 +106,7 @@ async def fetch_domains(
             scan_params = {'FilterExpression': filter_conditions}
             if last_evaluated_key and last_evaluated_key != "start":
                 scan_params['ExclusiveStartKey'] = {'email': last_evaluated_key}
-                
+            
             collected_items = []
             last_key = None
             
@@ -121,20 +121,11 @@ async def fetch_domains(
             return collected_items, last_key
 
         if round == 1:
-            filter_expression = None
-            expression_values = {}
-
             if status.lower() == "unmarked":
-                filter_expression = f"attribute_not_exists(#{qualification_attr}) OR #{qualification_attr} = :empty"
-                expression_values = {':empty': None}
+                filter_conditions = Attr(qualification_attr).not_exists() | Attr(qualification_attr).eq(None)
             else:
-                filter_expression = f"#{qualification_attr} = :status"
-                expression_values = {':status': status}
-
-            collected_items, last_key = scan_table(
-                Attr(qualification_attr).not_exists() | Attr(qualification_attr).eq(None) if status.lower() == "unmarked" 
-                else Attr(qualification_attr).eq(status)
-            )
+                filter_conditions = Attr(qualification_attr).eq(status)
+            collected_items, last_key = scan_table(filter_conditions)
 
         elif round == 2:
             filter_conditions = Attr(previous_round_attr).eq("qualified") & Attr("round2").exists()
@@ -142,15 +133,19 @@ async def fetch_domains(
                 filter_conditions &= (~Attr(qualification_attr).exists() | Attr(qualification_attr).eq(None))
             else:
                 filter_conditions &= Attr(qualification_attr).eq(status)
-
             collected_items, last_key = scan_table(filter_conditions)
 
-        json_data = json.dumps({
-            "items": collected_items,
-            "last_evaluated_key": last_key or None
-        }, default=lambda x: float(x) if isinstance(x, Decimal) else x)
-
-        return JSONResponse(status_code=200, content=json_data)
+        # Use json.dumps with a custom default handler for Decimal conversion
+        return JSONResponse(
+            status_code=200, 
+            content=json.loads(json.dumps(
+                {
+                    "items": collected_items,
+                    "last_evaluated_key": last_key['email'] if last_key else None
+                }, 
+                default=lambda obj: float(obj) if isinstance(obj, Decimal) else obj
+            ))
+        )
     
     except HTTPException as e:
         return JSONResponse(status_code=e.status_code, content={"detail": e.detail})
