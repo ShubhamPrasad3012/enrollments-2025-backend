@@ -33,7 +33,8 @@ DOMAIN_MAPPING = {
     'APP': 'app',
     'AI/ML': 'ai',
     'RND': 'rnd',
-    'CC': 'cc'
+    'CC': 'cc',
+    "WEB":"web"
 }
 
 from fastapi import HTTPException
@@ -128,14 +129,53 @@ async def fetch_domains(
             collected_items, last_key = scan_table(filter_conditions)
 
         elif round == 2:
-            filter_conditions = Attr(previous_round_attr).eq("qualified") & Attr("round2").exists()
-            if status.lower() == "unmarked":
-                filter_conditions &= (~Attr(qualification_attr).exists() | Attr(qualification_attr).eq(None))
-            else:
-                filter_conditions &= Attr(qualification_attr).eq(status)
-            collected_items, last_key = scan_table(filter_conditions)
+            if domain == "WEB":
+                frontend_conditions = (
+                Attr(previous_round_attr).eq("qualified") & 
+                Attr("frontend").exists()  
+                )
 
-        # Use json.dumps with a custom default handler for Decimal conversion
+                backend_conditions = (
+                    Attr(previous_round_attr).eq("qualified") & 
+                    Attr("backend").exists()  
+                )
+
+
+
+                if status.lower() == "unmarked":
+                    frontend_conditions &= (~Attr(qualification_attr).exists() | Attr(qualification_attr).eq(None))
+                    backend_conditions &= (~Attr(qualification_attr).exists() | Attr(qualification_attr).eq(None))
+                else:
+                    frontend_conditions &= Attr(qualification_attr).eq(status)
+                    backend_conditions &= Attr(qualification_attr).eq(status)
+
+                frontend_items, frontend_last_key = scan_table(frontend_conditions)
+                backend_items, backend_last_key = scan_table(backend_conditions)
+
+                return JSONResponse(
+                    status_code=200, 
+                    content=json.loads(json.dumps(
+                        {
+                            "FRONTEND": {
+                                "items": frontend_items,
+                                "last_evaluated_key": frontend_last_key['email'] if frontend_last_key else None
+                            },
+                            "BACKEND": {
+                                "items": backend_items,
+                                "last_evaluated_key": backend_last_key['email'] if backend_last_key else None
+                            }
+                        }, 
+                        default=lambda obj: float(obj) if isinstance(obj, Decimal) else obj
+                    ))
+                )
+            else:
+                filter_conditions = Attr(previous_round_attr).eq("qualified") & Attr("round2").exists()
+                if status.lower() == "unmarked":
+                    filter_conditions &= (~Attr(qualification_attr).exists() | Attr(qualification_attr).eq(None))
+                else:
+                    filter_conditions &= Attr(qualification_attr).eq(status)
+                collected_items, last_key = scan_table(filter_conditions)
+
         return JSONResponse(
             status_code=200, 
             content=json.loads(json.dumps(
@@ -215,7 +255,7 @@ async def add_question(
 
         print(question_data_dict)
         response = quiz_table.get_item(Key={'qid': domain})
-        field = response.get('Item') or {}  # Ensure field is a dictionary, not None
+        field = response.get('Item') or {}  
 
         question_key = f"mcq{round}" if options else f"desc{round}"
 
@@ -223,7 +263,7 @@ async def add_question(
             field[question_key] = []
 
         field[question_key].append(question_data_dict)
-        field['qid'] = domain  # Ensure qid is always present
+        field['qid'] = domain 
 
         quiz_table.put_item(Item=field)
 
