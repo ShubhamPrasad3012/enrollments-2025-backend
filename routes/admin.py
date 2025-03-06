@@ -153,20 +153,18 @@ async def fetch_domains(
                 backend_items, backend_last_key = scan_table(backend_conditions)
 
                 return JSONResponse(
-                    status_code=200, 
-                    content=json.loads(json.dumps(
-                        {
-                            "FRONTEND": {
-                                "items": frontend_items,
-                                "last_evaluated_key": frontend_last_key['email'] if frontend_last_key else None
-                            },
-                            "BACKEND": {
-                                "items": backend_items,
-                                "last_evaluated_key": backend_last_key['email'] if backend_last_key else None
+                status_code=200, 
+                content=json.loads(json.dumps(
+                    {
+                        "items": {
+                            "round2": {
+                                "FRONTEND": frontend_items,
+                                "BACKEND": backend_items
                             }
-                        }, 
-                        default=lambda obj: float(obj) if isinstance(obj, Decimal) else obj
-                    ))
+                        }
+                    }, 
+                    default=lambda obj: float(obj) if isinstance(obj, Decimal) else obj
+                ))
                 )
             else:
                 filter_conditions = Attr(previous_round_attr).eq("qualified") & Attr("round2").exists()
