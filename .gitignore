@@ -12,7 +12,7 @@ env.bak/
 *.egg
 *.egg-info/
 .eggs/
-
+*.xlsx
 # IDE-specific
 .idea/
 .vscode/

@@ -57,6 +57,9 @@ async def post_answers(answerReq: AnswerStruct, idToken: str = Depends(get_acces
         # if answerReq.domain not in flat_domains:
         #     return JSONResponse(status_code=408, content="Domain was not selected")
         mapped_domain = domain_mapping.get(answerReq.domain)
+        if answerReq.domain in ["GRAPHIC DESIGN"]:
+            raise HTTPException(status_code=401, detail=f"Deadline for '{answerReq.domain}' is over.")
+        
         domain_tables = resources['domain_tables']
         domain_table = domain_tables.get(mapped_domain)
 
