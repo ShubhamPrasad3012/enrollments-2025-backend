@@ -18,7 +18,6 @@ env.bak/
 .vscode/
 *.swp
 script.py
-script2.py
 # Logs and output
 *.log
 *.out
