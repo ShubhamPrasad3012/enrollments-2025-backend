@@ -6,13 +6,13 @@ __pycache__/
 *.pyo
 .Python
 env/
-venv/
+myenv/
 ENV/
 env.bak/
 *.egg
 *.egg-info/
 .eggs/
-
+*.xlsx
 # IDE-specific
 .idea/
 .vscode/

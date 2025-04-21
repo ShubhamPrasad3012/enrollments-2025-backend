@@ -26,7 +26,8 @@ def initialize():
         "rnd": dynamodb.Table("domain-rnd"),
         "ui": dynamodb.Table("domain-ui"),
         "video": dynamodb.Table("domain-video"),
-        "web": dynamodb.Table("domain-web")
+        "web": dynamodb.Table("domain-web"),
+        "cc": dynamodb.Table("domain-cc")
     }
 
     user_table = dynamodb.Table("enrollments-site-users")

@@ -60,10 +60,10 @@ async def get_profile(authorization: str = Depends(get_access_token), resources:
         if not user:
             raise HTTPException(status_code=404, detail="User not found")
         return {
-            "email": email, 
-            "username": user.get("username"), 
-            "mobile": user.get("mobile"), 
-            "name": user.get("name"), 
+            "email": email,
+            "username": user.get("username"),
+            "mobile": user.get("mobile"),
+            "name": user.get("name"),
             "domain": user.get("domain")
         }
 
@@ -110,12 +110,14 @@ async def submit_username(
         raise e
     except Exception as e:
         return JSONResponse(status_code=500, content= f"Internal Server Error: {str(e)}")
-  
+
 SUBDOMAIN_MAPPING = {
     "WEB": "Technical",
     "APP": "Technical",
     "AI/ML": "Technical",
+    "RND": "Technical",
     "IOT": "Technical",
+    "CC": "Technical",
     "PNM": "Management",
     "EVENTS": "Management",
     "UI/UX": "Design",
@@ -137,7 +139,8 @@ async def get_dashboard(
         except Exception as token_error:
             raise HTTPException(status_code=401, detail=f"Invalid token: {str(token_error)}")
 
-        email = decoded_token.get("email")
+        email = decoded_token.get('email')
+        # email='aiman.parvezdhanani2024@vitstudent.ac.in'
         if not email:
             raise HTTPException(status_code=400, detail="Email not found in ID token")
 
@@ -149,26 +152,51 @@ async def get_dashboard(
         except Exception as db_error:
             raise HTTPException(status_code=500, detail=f"Database lookup failed: {str(db_error)}")
 
-        domain_data = user.get("domain", {})  # Dictionary of domains and their subdomains
-        completed_subdomains = set(user.get(f"round{round}", []))  # Subdomains completed in the round
+        # if round==1:
+        #     domain_data = user.get("domain", {})  # Dictionary of domains and their subdomains
+        #     completed_subdomains = set(user.get(f"round{round}", []))  # Subdomains completed in the round
 
-        pending_list = []
-        completed_list = []
+        #     pending_list = []
+        #     completed_list = []
 
-        for domain, subdomains in domain_data.items():
-            for sub in subdomains:
+        #     for domain, subdomains in domain_data.items():
+        #         for sub in subdomains:
+        #             category = SUBDOMAIN_MAPPING.get(sub.upper(), "Other")
+        #             formatted_entry = f"{category}:{sub.upper()}"
+
+        #             if sub.upper() in completed_subdomains:
+        #                 completed_list.append(formatted_entry)
+        #             else:
+        #                 pending_list.append(formatted_entry)
+
+        if round == 2:
+            # if "round1" not in user:
+            #     return JSONResponse(status_code=201, content={"message": "Did not attempt round 1"})
+            
+            pending_list = []
+            completed_list = []
+            if "status1" not in user:
+                return JSONResponse(status_code=200, content={
+                    "pending": pending_list,
+                    "completed": completed_list
+                })
+
+            status_data = user.get("status1", {})  
+
+            for sub, status in status_data.items():
                 category = SUBDOMAIN_MAPPING.get(sub.upper(), "Other")
                 formatted_entry = f"{category}:{sub.upper()}"
-                
-                if sub.upper() in completed_subdomains:
+
+                if status.lower() == "qualified":
                     completed_list.append(formatted_entry)
                 else:
                     pending_list.append(formatted_entry)
 
         return JSONResponse(status_code=200, content={
             "pending": pending_list,
-            "completed": completed_list
+            "completed": completed_list,
+            "slots":user.get("slots",{})
         })
-    
+                
     except Exception as unexpected_error:
         raise HTTPException(status_code=500, detail=f"Unexpected server error: {str(unexpected_error)}")
